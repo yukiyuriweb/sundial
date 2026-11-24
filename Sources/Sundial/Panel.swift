@@ -294,7 +294,7 @@ struct PanelView: View {
     /// The day's switching: how often, how long each stay lasted, and how much was going straight back
     private func switchFigures(_ stats: SwitchStats) -> some View {
         HStack(alignment: .top, spacing: 20) {
-            switchFigure("Switches", stats.perHour.map { String(localized: "\($0.formatted(.number.precision(.fractionLength(1)))) per hour") } ?? "–",
+            switchFigure("Switches", stats.perHour.map { String(localized: "\($0.formatted(.number.precision(.fractionLength(1)))) / hour") } ?? "–",
                          usual: usualRate.map { String(localized: "usually \($0.formatted(.number.precision(.fractionLength(1)))))") })
             switchFigure("Median Stay", stats.medianVisit.map {
                 Duration.seconds($0).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .abbreviated, maximumUnitCount: 2))

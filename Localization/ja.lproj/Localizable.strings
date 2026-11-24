@@ -87,7 +87,7 @@
 "Switches" = "切り替え";
 "Median Stay" = "滞在の中央値";
 "Back and Forth" = "行ったり来たり";
-"%@ per hour" = "%@ 回／時";
+"%@ / hour" = "%@ 回／時";
 "usually %@" = "ふだん %@";
 "%@: ^[%lld switch](inflect: true)" = "%1$@：%2$lld 回の切り替え";
 "Switches between projects, with time outside any project left out. Frequent, short back-and-forth wears on attention." = "プロジェクト同士の切り替えです（プロジェクトの外の時間は数えません）。短い間隔で行ったり来たりするほど、注意力を消耗します。";
