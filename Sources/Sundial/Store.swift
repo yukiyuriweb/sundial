@@ -69,11 +69,14 @@ func openDatabase() -> OpaquePointer? {
             cwd TEXT,
             start REAL NOT NULL,
             end REAL NOT NULL,
-            closed INTEGER NOT NULL DEFAULT 0
+            closed INTEGER NOT NULL DEFAULT 0,
+            busy INTEGER NOT NULL DEFAULT 0
         );
         CREATE INDEX IF NOT EXISTS agent_spans_end ON agent_spans (end);
         CREATE INDEX IF NOT EXISTS agent_spans_session ON agent_spans (tool, session);
         """, nil, nil, nil)
+    // Added after the first release; fails harmlessly once the column exists.
+    sqlite3_exec(db, "ALTER TABLE agent_spans ADD COLUMN busy INTEGER NOT NULL DEFAULT 0", nil, nil, nil)
     return db
 }
 

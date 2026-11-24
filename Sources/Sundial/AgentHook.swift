@@ -7,11 +7,18 @@ import SQLite3
 /// - Claude Code and Codex send `session_id`, `cwd` and `hook_event_name`
 /// - Antigravity CLI sends `conversationId`, `cwd` and `hookEventName`
 ///
-/// `UserPromptSubmit` starts a turn, `Stop` ends it, and any other event (tool use, a model call) moves the
-/// turn's end forward, so a turn cut short without `Stop` (Claude Code sends none when you interrupt it) ends
-/// at its last sign of activity. `SessionEnd` only closes such a turn, since it may come hours later.
-/// Hooks can run side by side (Claude Code runs them asynchronously), so each one reads and writes in a single
-/// write transaction.
+/// How events shape a turn:
+/// - `UserPromptSubmit` starts one. Antigravity CLI doesn't send it, so there any event can start one.
+/// - `PreToolUse` moves its end forward and marks a tool as running, so a long tool run stays in the turn.
+/// - Other events (`PostToolUse`, Antigravity's `PreInvocation`) move its end forward. Unless a tool was
+///   running, a gap of 10 minutes or more since the last event means the agent sat idle (a turn interrupted
+///   without `Stop`, then work resumed), so a new turn starts instead.
+/// - With no turn open, an event starts one, which keeps work going after `Stop` (another Stop hook may make
+///   the agent continue) or after a lost `UserPromptSubmit`. A `PostToolUse` within seconds of `Stop` is the
+///   finished turn's last hook arriving late, since hooks can run side by side, and is ignored.
+/// - `Stop` ends the turn. `SessionEnd` only closes it, since it may come hours after the last activity.
+///
+/// Each call reads and writes in one write transaction, so hooks running side by side don't race.
 func runAgentHook(tool: String) {
     defer { print("{}") }
     let input = FileHandle.standardInput.readDataToEndOfFile()
@@ -34,40 +41,44 @@ func runAgentHook(tool: String) {
         sqlite3_step(stmt)
     }
 
-    // The session's turn still running, if any
-    var open: (id: Int64, end: Double)?
+    // The session's latest turn: whether it is still open, when it last saw activity, and whether a tool is running
+    var latest: (id: Int64, end: Double, closed: Bool, busy: Bool)?
     var stmt: OpaquePointer?
-    if sqlite3_prepare_v2(db, "SELECT id, end FROM agent_spans WHERE tool = ? AND session = ? AND closed = 0 ORDER BY id DESC LIMIT 1",
+    if sqlite3_prepare_v2(db, "SELECT id, end, closed, busy FROM agent_spans WHERE tool = ? AND session = ? ORDER BY id DESC LIMIT 1",
                           -1, &stmt, nil) == SQLITE_OK {
         bind(stmt, [tool, session])
         if sqlite3_step(stmt) == SQLITE_ROW {
-            open = (sqlite3_column_int64(stmt, 0), sqlite3_column_double(stmt, 1))
+            latest = (sqlite3_column_int64(stmt, 0), sqlite3_column_double(stmt, 1),
+                      sqlite3_column_int(stmt, 2) != 0, sqlite3_column_int(stmt, 3) != 0)
         }
     }
     sqlite3_finalize(stmt)
+    let open = latest.flatMap { $0.closed ? nil : $0 }
+    let busy: Int64 = event == "PreToolUse" ? 1 : 0
 
     func startTurn() {
         if let open { run("UPDATE agent_spans SET closed = 1 WHERE id = ?", [open.id]) }
-        run("INSERT INTO agent_spans (tool, session, project, cwd, start, end) VALUES (?, ?, ?, ?, ?, ?)",
-            [tool, session, cwd.flatMap(gitProject(forPath:)), cwd.map(abbreviated), now, now])
+        run("INSERT INTO agent_spans (tool, session, project, cwd, start, end, busy) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [tool, session, cwd.flatMap(gitProject(forPath:)), cwd.map(abbreviated), now, now, busy])
     }
 
     switch event {
     case "UserPromptSubmit":
         startTurn()
     case "Stop":
-        if let open { run("UPDATE agent_spans SET end = ?, closed = 1 WHERE id = ?", [now, open.id]) }
+        if let open { run("UPDATE agent_spans SET end = ?, closed = 1, busy = 0 WHERE id = ?", [now, open.id]) }
     case "SessionEnd":
-        if let open { run("UPDATE agent_spans SET closed = 1 WHERE id = ?", [open.id]) }
+        if let open { run("UPDATE agent_spans SET closed = 1, busy = 0 WHERE id = ?", [open.id]) }
     default:
-        // Antigravity CLI has no UserPromptSubmit hook here: its first model call starts a turn, and a turn it
-        // left without a Stop is closed once it has been quiet for 15 minutes. Claude Code and Codex start turns
-        // only on a prompt, so a tool hook finishing after Stop doesn't open a stray one, and the next prompt
-        // closes a turn left open, so a long tool run stays one turn.
-        let antigravity = tool == "antigravity"
-        if let open, !antigravity || now - open.end < 15 * 60 {
-            run("UPDATE agent_spans SET end = ? WHERE id = ?", [now, open.id])
-        } else if antigravity {
+        if let open {
+            if open.busy || now - open.end < 10 * 60 {
+                run("UPDATE agent_spans SET end = ?, busy = ? WHERE id = ?", [now, busy, open.id])
+            } else {
+                startTurn()
+            }
+        } else if event == "PostToolUse", let latest, now - latest.end < 10 {
+            // The finished turn's last tool hook, arriving after its Stop
+        } else {
             startTurn()
         }
     }

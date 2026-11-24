@@ -174,7 +174,9 @@ struct ContentView: View {
         List(selection: $selection) {
             if !buckets.isEmpty, let period {
                 let drawn = Set(buckets.map(\.project))
-                TimelineChart(buckets: buckets, series: timelineSeries(projects).filter(drawn.contains),
+                let all = timelineSeries(projects)
+                let series = all.filter(drawn.contains)
+                TimelineChart(buckets: buckets, series: series, colors: series.map { timelineColor($0, in: all) },
                               domain: period.chartDomain(), unit: period.unit)
                     .frame(height: 150)
                     .padding(.vertical, 6)
@@ -220,7 +222,7 @@ struct ContentView: View {
             }
         }
         .navigationTitle(period?.title ?? "Sundial")
-        .navigationSubtitle(period.flatMap { totals[$0] }.map(formatDuration) ?? "")
+        .navigationSubtitle(period.flatMap { totals[$0] }.map { $0 > 0 ? formatDuration($0) : "" } ?? "")
     }
 
     private func reload() {

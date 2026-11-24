@@ -15,6 +15,15 @@ func timelineSeries(_ projects: [ProjectSummary]) -> [String] {
         + [String(localized: "Other Projects"), String(localized: "No Project")]
 }
 
+/// A series' color comes from its place among all series, not just the drawn ones, so leaving out
+/// "Other Projects" on a quieter day doesn't shift "No Project" to another color.
+func timelineColor(_ name: String, in series: [String]) -> Color {
+    let palette: [Color] = [.blue, .green, .orange, .purple, .pink]
+    if name == String(localized: "No Project") { return .gray.opacity(0.45) }
+    if name == String(localized: "Other Projects") { return .gray }
+    return palette[min(series.firstIndex(of: name) ?? 0, palette.count - 1)]
+}
+
 /// Your own time per hour or per day, stacked by project. The projects after the first five share one color.
 func timeline(_ spans: [Span], projects: [ProjectSummary], in range: Range<Date>, unit: Calendar.Component) -> [Bucket] {
     let calendar = Calendar.current
@@ -42,8 +51,9 @@ func timeline(_ spans: [Span], projects: [ProjectSummary], in range: Range<Date>
 
 struct TimelineChart: View {
     let buckets: [Bucket]
-    /// Series names in color order; only those with bars are passed, so the legend lists what is drawn
+    /// Series with bars, so the legend lists only what is drawn, and the color of each
     let series: [String]
+    let colors: [Color]
     /// The whole span the chart covers, such as all of today rather than today until now
     let domain: Range<Date>
     let unit: Calendar.Component
@@ -54,7 +64,7 @@ struct TimelineChart: View {
                     y: .value("Time Spent", unit == .hour ? bucket.minutes : bucket.minutes / 60))
                 .foregroundStyle(by: .value("Project", bucket.project))
         }
-        .chartForegroundStyleScale(domain: series)
+        .chartForegroundStyleScale(domain: series, range: colors)
         .chartXScale(domain: domain.lowerBound...domain.upperBound)
         .chartXAxis {
             if unit == .hour {

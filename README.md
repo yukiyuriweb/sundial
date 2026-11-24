@@ -33,9 +33,9 @@ Sundial is signed ad hoc, so macOS treats every new build as a new app, and turn
 
 | Tool | File | Events |
 |---|---|---|
-| Claude Code | `~/.claude/settings.json` (`hooks`) | `UserPromptSubmit`, `PostToolUse`, `Stop`, `SessionEnd` |
-| Codex | `~/.codex/hooks.json` | `UserPromptSubmit`, `PostToolUse`, `Stop` |
-| Antigravity CLI | `~/.gemini/config/hooks.json` | `PreInvocation`, `PostToolUse`, `Stop` |
+| Claude Code | `~/.claude/settings.json` (`hooks`) | `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`, `SessionEnd` |
+| Codex | `~/.codex/hooks.json` | `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop` |
+| Antigravity CLI | `~/.gemini/config/hooks.json` | `PreInvocation`, `PreToolUse`, `PostToolUse`, `Stop` |
 
 For example, in `~/.codex/hooks.json`:
 
@@ -43,13 +43,14 @@ For example, in `~/.codex/hooks.json`:
 {
   "hooks": {
     "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "~/Applications/Sundial.app/Contents/MacOS/Sundial agent codex" }] }],
+    "PreToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "~/Applications/Sundial.app/Contents/MacOS/Sundial agent codex" }] }],
     "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "~/Applications/Sundial.app/Contents/MacOS/Sundial agent codex" }] }],
     "Stop": [{ "hooks": [{ "type": "command", "command": "~/Applications/Sundial.app/Contents/MacOS/Sundial agent codex" }] }]
   }
 }
 ```
 
-The tool name (`claude`, `codex`, `antigravity`) is what Sundial shows. Tool use and model calls move a turn's end forward, so a turn cut short without `Stop` ends at its last activity; `SessionEnd` closes it without moving its end. Codex runs new hooks only after you trust them in Codex.
+The tool name (`claude`, `codex`, `antigravity`) is what Sundial shows. A prompt starts a turn and `Stop` ends it; tool use and model calls move its end forward, so a turn cut short without `Stop` ends at its last activity, and `SessionEnd` closes it without moving its end. A tool still running keeps the turn going however long it takes; otherwise 10 minutes without any event means the agent sat idle, and the next event starts a new turn. Antigravity CLI sends no prompt event, so its turns start with any event. Codex runs new hooks only after you trust them in Codex.
 
 Everything is kept in `~/Library/Application Support/Sundial/sundial.sqlite` and never leaves your Mac.
 
