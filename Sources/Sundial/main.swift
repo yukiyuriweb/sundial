@@ -3,7 +3,8 @@ import ServiceManagement
 import SwiftUI
 
 /// Sundial records in the background, so closing its window only takes it out of the Dock; the menu bar item
-/// with today's total stays until Quit.
+/// with today's total stays until Quit. Clicking that item opens the window; the rarely used commands (pause,
+/// open at login, Accessibility access) live in the app menu.
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = Store()
@@ -78,19 +79,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.image = NSImage(systemSymbolName: "sun.max", accessibilityDescription: "Sundial")
         item.button?.imagePosition = .imageLeading
-        let menu = NSMenu()
-        menu.delegate = self
-        menu.addItem(withTitle: String(localized: "Open Sundial"), action: #selector(openWindow(_:)), keyEquivalent: "").target = self
-        pauseItem.target = self
-        menu.addItem(pauseItem)
-        menu.addItem(.separator())
-        accessibilityItem.target = self
-        menu.addItem(accessibilityItem)
-        loginItem.target = self
-        menu.addItem(loginItem)
-        menu.addItem(.separator())
-        menu.addItem(withTitle: String(localized: "Quit Sundial"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
-        item.menu = menu
+        item.button?.toolTip = String(localized: "Open Sundial")
+        item.button?.target = self
+        item.button?.action = #selector(openWindow(_:))
         statusItem = item
     }
 
@@ -152,7 +143,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let main = NSMenu()
 
         let appMenu = NSMenu()
+        appMenu.delegate = self
         appMenu.addItem(withTitle: String(localized: "About Sundial"), action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
+        appMenu.addItem(.separator())
+        pauseItem.target = self
+        appMenu.addItem(pauseItem)
+        loginItem.target = self
+        appMenu.addItem(loginItem)
+        accessibilityItem.target = self
+        appMenu.addItem(accessibilityItem)
         appMenu.addItem(.separator())
         appMenu.addItem(withTitle: String(localized: "Hide Sundial"), action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
         appMenu.addItem(withTitle: String(localized: "Quit Sundial"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")

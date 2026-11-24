@@ -6,7 +6,7 @@ A lightweight, native macOS time tracker in the spirit of [WakaTime](https://wak
 - Stops counting when the screen is locked or asleep, when recording is paused, or after 3 minutes without keyboard or mouse input (10 minutes in apps you mostly read in)
 - The sidebar picks Today, Yesterday, the last 7 days or the last 30 days; a chart shows when you worked, by the hour or by the day and stacked by project, the list shows each project's time and apps, and the detail shows the time per app and per file, folder or page
 - Records how long coding agents work, through their hooks: [Claude Code](https://github.com/anthropics/claude-code), [Codex](https://github.com/openai/codex) and [Antigravity CLI](https://antigravity.google) — kept apart from your own time, since agents run while you do other things
-- Today's total sits next to the menu bar icon; closing the window leaves Sundial recording in the menu bar until Quit
+- Today's total sits next to the menu bar icon, and clicking it opens the window; closing the window leaves Sundial recording in the menu bar until you quit it from the Sundial menu, which also holds Pause Recording and Open at Login
 - Opens at login
 - Written in Swift with SwiftUI only — no Electron, no dependencies
 
