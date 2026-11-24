@@ -374,8 +374,9 @@ struct ProjectCard: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .topLeading)
-                if !project.details.isEmpty {
-                    section(project.name == nil ? "Windows" : "Files, Folders and Pages") {
+                // Time outside a project is kept by app only, with no pages or windows
+                if project.name != nil, !project.details.isEmpty {
+                    section("Files, Folders and Pages") {
                         // The top ten tell where most of the time went; a panel is for a glance
                         ForEach(project.details.prefix(10)) { detail in
                             ShareRow(share: detail, total: project.seconds) {

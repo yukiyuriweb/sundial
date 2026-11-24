@@ -17,7 +17,9 @@ A lightweight, native macOS time tracker in the spirit of [WakaTime](https://wak
 |---|---|---|
 | [Ghostty](https://ghostty.org) | AppleScript | Working directory of the focused terminal |
 | Brave | AppleScript | Address of the active tab; on github.com, the repository counts as the project |
-| Any other app | Accessibility API | Document (file) and title of the focused window |
+| Any other app | Accessibility API | Document (file) of the focused window |
+
+Time outside a project is kept by app only: the pages and windows open there aren't stored.
 
 The project is the Git repository holding the file or directory, found by looking for `.git` up to the home folder. A linked worktree counts as its main repository, and project names are matched without regard to case, so the GitHub repository `rejoin` joins the local folder `Rejoin`.
 
