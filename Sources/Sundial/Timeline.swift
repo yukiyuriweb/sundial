@@ -9,6 +9,12 @@ struct Bucket: Identifiable {
     let minutes: Double
 }
 
+/// The projects the timeline names, in the order their colors are given, so colors stay put between reloads
+func timelineSeries(_ projects: [ProjectSummary]) -> [String] {
+    projects.filter { $0.name != nil && $0.seconds > 0 }.prefix(5).compactMap(\.name)
+        + [String(localized: "Other Projects"), String(localized: "No Project")]
+}
+
 /// Your own time per hour or per day, stacked by project. The projects after the first five share one color.
 func timeline(_ spans: [Span], projects: [ProjectSummary], in range: Range<Date>, unit: Calendar.Component) -> [Bucket] {
     let calendar = Calendar.current
@@ -27,13 +33,17 @@ func timeline(_ spans: [Span], projects: [ProjectSummary], in range: Range<Date>
             t = next
         }
     }
+    let order = timelineSeries(projects)
     return minutes.flatMap { start, byProject in
         byProject.map { Bucket(id: "\(start.timeIntervalSince1970)\n\($0.key)", start: start, project: $0.key, minutes: $0.value) }
     }
+    .sorted { ($0.start, order.firstIndex(of: $0.project) ?? order.count) < ($1.start, order.firstIndex(of: $1.project) ?? order.count) }
 }
 
 struct TimelineChart: View {
     let buckets: [Bucket]
+    /// Series names in color order; only those with bars are passed, so the legend lists what is drawn
+    let series: [String]
     /// The whole span the chart covers, such as all of today rather than today until now
     let domain: Range<Date>
     let unit: Calendar.Component
@@ -44,6 +54,7 @@ struct TimelineChart: View {
                     y: .value("Time Spent", unit == .hour ? bucket.minutes : bucket.minutes / 60))
                 .foregroundStyle(by: .value("Project", bucket.project))
         }
+        .chartForegroundStyleScale(domain: series)
         .chartXScale(domain: domain.lowerBound...domain.upperBound)
         .chartXAxis {
             if unit == .hour {

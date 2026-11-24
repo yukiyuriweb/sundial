@@ -7,8 +7,9 @@ import SQLite3
 /// - Claude Code and Codex send `session_id`, `cwd` and `hook_event_name`
 /// - Antigravity CLI sends `conversationId`, `cwd` and `hookEventName`
 ///
-/// `UserPromptSubmit` starts a turn, `Stop` and `SessionEnd` end it, and any other event (tool use, a model
-/// call) moves the turn's end forward, so a turn cut short without `Stop` ends at its last sign of activity.
+/// `UserPromptSubmit` starts a turn, `Stop` ends it, and any other event (tool use, a model call) moves the
+/// turn's end forward, so a turn cut short without `Stop` (Claude Code sends none when you interrupt it) ends
+/// at its last sign of activity. `SessionEnd` only closes such a turn, since it may come hours later.
 /// Hooks can run side by side (Claude Code runs them asynchronously), so each one reads and writes in a single
 /// write transaction.
 func runAgentHook(tool: String) {
@@ -19,7 +20,8 @@ func runAgentHook(tool: String) {
           let event = (json["hook_event_name"] ?? json["hookEventName"]) as? String,
           let db = openDatabase() else { return }
     defer { sqlite3_close(db) }
-    sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil)
+    // Skipping one event beats racing another hook into a duplicate turn.
+    guard sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil) == SQLITE_OK else { return }
     defer { sqlite3_exec(db, "COMMIT", nil, nil, nil) }
     let cwd = json["cwd"] as? String
     let now = Date().timeIntervalSince1970
@@ -53,14 +55,19 @@ func runAgentHook(tool: String) {
     switch event {
     case "UserPromptSubmit":
         startTurn()
-    case "Stop", "SessionEnd":
+    case "Stop":
         if let open { run("UPDATE agent_spans SET end = ?, closed = 1 WHERE id = ?", [now, open.id]) }
+    case "SessionEnd":
+        if let open { run("UPDATE agent_spans SET closed = 1 WHERE id = ?", [open.id]) }
     default:
-        // Antigravity CLI has no UserPromptSubmit hook here, so a turn it left without a Stop is closed once it
-        // has been quiet for 15 minutes. Elsewhere the next prompt closes it, and a long tool run stays one turn.
-        if let open, tool != "antigravity" || now - open.end < 15 * 60 {
+        // Antigravity CLI has no UserPromptSubmit hook here: its first model call starts a turn, and a turn it
+        // left without a Stop is closed once it has been quiet for 15 minutes. Claude Code and Codex start turns
+        // only on a prompt, so a tool hook finishing after Stop doesn't open a stray one, and the next prompt
+        // closes a turn left open, so a long tool run stays one turn.
+        let antigravity = tool == "antigravity"
+        if let open, !antigravity || now - open.end < 15 * 60 {
             run("UPDATE agent_spans SET end = ? WHERE id = ?", [now, open.id])
-        } else {
+        } else if antigravity {
             startTurn()
         }
     }

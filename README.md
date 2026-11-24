@@ -25,7 +25,7 @@ Sundial needs two kinds of permission, which macOS asks for the first time they 
 - **Accessibility**, to read the document of the focused window. Without it, only app names are recorded.
 - **Automation** for Ghostty and Brave, to read the working directory and the address.
 
-Sundial is signed ad hoc, so macOS treats every new build as a new app: after rebuilding, turn Sundial off and on again in System Settings › Privacy & Security › Accessibility.
+Sundial is signed ad hoc, so macOS treats every new build as a new app, and turning the old entry off and on again doesn't carry the permission over. After rebuilding, remove Sundial from System Settings › Privacy & Security › Accessibility with − (or run `tccutil reset Accessibility local.sundial`), then open Sundial and allow it again.
 
 ## Agents
 
@@ -49,7 +49,7 @@ For example, in `~/.codex/hooks.json`:
 }
 ```
 
-The tool name (`claude`, `codex`, `antigravity`) is what Sundial shows. Tool use and model calls move a turn's end forward, so a turn cut short without `Stop` ends at its last activity. Codex runs new hooks only after you trust them in Codex.
+The tool name (`claude`, `codex`, `antigravity`) is what Sundial shows. Tool use and model calls move a turn's end forward, so a turn cut short without `Stop` ends at its last activity; `SessionEnd` closes it without moving its end. Codex runs new hooks only after you trust them in Codex.
 
 Everything is kept in `~/Library/Application Support/Sundial/sundial.sqlite` and never leaves your Mac.
 

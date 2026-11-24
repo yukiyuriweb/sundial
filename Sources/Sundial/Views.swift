@@ -172,8 +172,10 @@ struct ContentView: View {
 
     private var projectList: some View {
         List(selection: $selection) {
-            if !projects.isEmpty, let period {
-                TimelineChart(buckets: buckets, domain: period.chartDomain(), unit: period.unit)
+            if !buckets.isEmpty, let period {
+                let drawn = Set(buckets.map(\.project))
+                TimelineChart(buckets: buckets, series: timelineSeries(projects).filter(drawn.contains),
+                              domain: period.chartDomain(), unit: period.unit)
                     .frame(height: 150)
                     .padding(.vertical, 6)
                     .selectionDisabled()
@@ -185,10 +187,13 @@ struct ContentView: View {
                             .font(.headline)
                             .foregroundStyle(project.name == nil ? .secondary : .primary)
                         Spacer()
-                        Text(formatDuration(project.seconds))
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
+                        // A project only agents worked on has none of your own time to show
+                        if project.seconds > 0 {
+                            Text(formatDuration(project.seconds))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                        }
                     }
                     HStack(alignment: .firstTextBaseline) {
                         Text(project.apps.prefix(3).map(\.name).joined(separator: ", "))
@@ -252,6 +257,7 @@ struct ProjectDetail: View {
                     Text("Agents")
                 } footer: {
                     Text("From your prompt until the agent stops. Agents running side by side each count in full.")
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             if !project.apps.isEmpty {
@@ -275,7 +281,7 @@ struct ProjectDetail: View {
             }
         }
         .navigationTitle(project.name ?? String(localized: "No Project"))
-        .navigationSubtitle(formatDuration(project.seconds))
+        .navigationSubtitle(project.seconds > 0 ? formatDuration(project.seconds) : "")
     }
 }
 

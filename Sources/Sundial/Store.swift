@@ -94,7 +94,8 @@ func bind(_ stmt: OpaquePointer?, _ values: [Any?]) {
 /// activity extend one row rather than adding a row each.
 @MainActor
 final class Store: ObservableObject {
-    /// Bumped on every write so views know to reload
+    /// Bumped by `noteChanges()` (every tick while the window is open, and when it opens) so views reload;
+    /// agent hooks write from other processes, so a write here alone isn't the only change to show
     @Published private(set) var revision = 0
     private var db: OpaquePointer?
     private var last: (id: Int64, activity: Activity, end: TimeInterval)?
