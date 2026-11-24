@@ -107,8 +107,18 @@ final class Store: ObservableObject {
 
     init() {
         db = openDatabase()
-        // Records from before time outside a project was kept by app only may still name pages and windows.
-        sqlite3_exec(db, "UPDATE spans SET detail = NULL WHERE project IS NULL AND detail IS NOT NULL", nil, nil, nil)
+        // Records from before time outside a project was kept by app only may still name pages and windows;
+        // cleared once, and the database's user_version remembers it.
+        var stmt: OpaquePointer?
+        var version: Int32 = 0
+        if sqlite3_prepare_v2(db, "PRAGMA user_version", -1, &stmt, nil) == SQLITE_OK, sqlite3_step(stmt) == SQLITE_ROW {
+            version = sqlite3_column_int(stmt, 0)
+        }
+        sqlite3_finalize(stmt)
+        if version < 1 {
+            sqlite3_exec(db, "UPDATE spans SET detail = NULL WHERE project IS NULL AND detail IS NOT NULL; PRAGMA user_version = 1",
+                         nil, nil, nil)
+        }
     }
 
     /// Credits the `interval` seconds up to `now` to the activity. It extends the latest span when that span

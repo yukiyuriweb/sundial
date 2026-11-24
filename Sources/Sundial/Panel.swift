@@ -35,6 +35,7 @@ struct PanelView: View {
     private var maxScrollHeight: CGFloat { (screenHeight ?? NSScreen.main?.visibleFrame.height ?? 800) - 120 }
     /// The height of the screen the panel opened on, which may not be the main one
     @State private var screenHeight: CGFloat?
+    @State private var wasVisible = false
 
     var body: some View {
         GlassEffectContainer(spacing: 10) {
@@ -77,11 +78,15 @@ struct PanelView: View {
         // window's own visibility tells.
         .background(WindowVisibility { visible, height in
             model.panelOpen = visible
-            if visible {
+            // Only when the panel opens, not when it is seen again (after the display wakes, say): start from
+            // today's overview
+            if visible, !wasVisible {
                 screenHeight = height
                 day = Calendar.current.startOfDay(for: Date())
+                path = []
                 openAtLogin = SMAppService.mainApp.status == .enabled
             }
+            wasVisible = visible
         })
         .task(id: store.revision) { reload() }
         .onChange(of: periodRaw) { reload() }

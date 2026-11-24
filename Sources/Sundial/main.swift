@@ -28,7 +28,9 @@ final class AppModel: ObservableObject {
     /// Today's total as hours and minutes
     private func showToday() {
         let seconds = Int(store.totalSeconds(in: Period.today.range()))
-        today = String(format: "%d:%02d", seconds / 3600, seconds / 60 % 60)
+        let text = String(format: "%d:%02d", seconds / 3600, seconds / 60 % 60)
+        // Assigned only on change, since every assignment redraws the menu bar label and the panel
+        if text != today { today = text }
     }
 
     /// Registers once; after that the panel's Open at Login toggle is the user's choice.
@@ -47,6 +49,7 @@ final class AppModel: ObservableObject {
 /// Sundial lives in the menu bar only: its item shows today's total, and clicking it opens a panel with the
 /// overview, as MemoryLens does. A panel needs no activation, so it always opens in front.
 struct SundialApp: App {
+    @NSApplicationDelegateAdaptor private var delegate: AppDelegate
     @StateObject private var model = AppModel()
 
     var body: some Scene {
@@ -59,6 +62,22 @@ struct SundialApp: App {
             MenuBarLabel(model: model, recorder: model.recorder)
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+/// With no Dock icon or menus, the menu bar item is the only way in. Where it can't be seen (no room beside the
+/// notch, or turned off in System Settings), opening Sundial again from the Finder or Spotlight says where it
+/// is and offers to quit.
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Sundial is running in the menu bar")
+        alert.informativeText = String(localized: "Click its icon and today's total in the menu bar to see the overview. If you can't see it, the menu bar may have no room for it, or it may be turned off in System Settings › Menu Bar.")
+        alert.addButton(withTitle: String(localized: "OK"))
+        alert.addButton(withTitle: String(localized: "Quit Sundial"))
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertSecondButtonReturn { NSApp.terminate(nil) }
+        return false
     }
 }
 

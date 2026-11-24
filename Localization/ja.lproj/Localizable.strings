@@ -78,3 +78,8 @@
 "More" = "その他";
 "Back" = "戻る";
 "^[%lld project](inflect: true)" = "%lld 件のプロジェクト";
+
+/* Reopen */
+"Sundial is running in the menu bar" = "Sundial はメニューバーで動いています";
+"Click its icon and today's total in the menu bar to see the overview. If you can't see it, the menu bar may have no room for it, or it may be turned off in System Settings › Menu Bar." = "メニューバーのアイコンと今日の合計をクリックすると、概要が開きます。見当たらない場合は、メニューバーに表示する場所がないか、システム設定の「メニューバー」で表示が切られている可能性があります。";
+"OK" = "OK";
