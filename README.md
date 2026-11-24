@@ -1,0 +1,48 @@
+# Sundial
+
+A lightweight, native macOS time tracker in the spirit of [WakaTime](https://wakatime.com), with no editor plugins and nothing sent anywhere. It sits in the menu bar, notes every few seconds which app is in front and what it shows, and adds the time up by project.
+
+- Every 5 seconds, records the front app and the file, folder or page it shows, and works out the Git repository it belongs to
+- Stops counting when the screen is locked or asleep, when recording is paused, or after 3 minutes without keyboard or mouse input (10 minutes in apps you mostly read in)
+- The sidebar picks Today, Yesterday, the last 7 days or the last 30 days; the list shows each project's time and apps, and the detail shows the time per app and per file, folder or page
+- Today's total sits next to the menu bar icon; closing the window leaves Sundial recording in the menu bar until Quit
+- Opens at login
+- Written in Swift with SwiftUI only — no Electron, no dependencies
+
+## What it reads
+
+| App | How | What |
+|---|---|---|
+| [Ghostty](https://ghostty.org) | AppleScript | Working directory of the focused terminal |
+| Brave | AppleScript | Address of the active tab; on github.com, the repository counts as the project |
+| Any other app | Accessibility API | Document (file) and title of the focused window |
+
+The project is the Git repository holding the file or directory, found by looking for `.git` up to the home folder. A linked worktree counts as its main repository, and project names are matched without regard to case, so the GitHub repository `rejoin` joins the local folder `Rejoin`.
+
+Sundial needs two kinds of permission, which macOS asks for the first time they are used:
+
+- **Accessibility**, to read the document of the focused window. Without it, only app names are recorded.
+- **Automation** for Ghostty and Brave, to read the working directory and the address.
+
+Sundial is signed ad hoc, so macOS treats every new build as a new app: after rebuilding, turn Sundial off and on again in System Settings › Privacy & Security › Accessibility.
+
+Everything is kept in `~/Library/Application Support/Sundial/sundial.sqlite` and never leaves your Mac.
+
+## Requirements
+
+- macOS 26 or later
+- Xcode or the Xcode Command Line Tools (Swift 6)
+
+## Build
+
+```sh
+./build.sh
+```
+
+This produces `build/Sundial.app`. `./build.sh --install` also copies it to `~/Applications`.
+
+The app icon is drawn by `scripts/make-icon.swift` at build time. UI strings are English in code; other languages live in `Localization/*.lproj`.
+
+## License
+
+MIT

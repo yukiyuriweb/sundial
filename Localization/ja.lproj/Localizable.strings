@@ -1,0 +1,42 @@
+/* Sidebar */
+"Today" = "今日";
+"Yesterday" = "昨日";
+"Last 7 Days" = "過去 7 日間";
+"Last 30 Days" = "過去 30 日間";
+
+/* Projects */
+"No Project" = "プロジェクトなし";
+"No Activity" = "記録がありません";
+"Time you spend in apps shows up here." = "アプリを使った時間がここに表示されます。";
+"Recording is paused." = "記録を一時停止しています。";
+"Select a Project" = "プロジェクトを選択";
+"Apps" = "アプリ";
+"Windows" = "ウインドウ";
+"Files, Folders and Pages" = "ファイル・フォルダ・ページ";
+"Under 1 min" = "1 分未満";
+
+/* Recording */
+"Pause Recording" = "記録を一時停止";
+"Resume Recording" = "記録を再開";
+"Allow Accessibility" = "アクセシビリティを許可";
+"Allow Accessibility Access…" = "アクセシビリティへのアクセスを許可…";
+"Sundial needs Accessibility access to see which file CotEditor and Markdown Preview have open." = "CotEditor や Markdown Preview で開いているファイルを知るには、アクセシビリティへのアクセスが必要です。";
+
+/* Menu bar */
+"Open Sundial" = "Sundial を開く";
+"Open at Login" = "ログイン時に開く";
+"Quit Sundial" = "Sundial を終了";
+
+/* Menus */
+"About Sundial" = "Sundial について";
+"Hide Sundial" = "Sundial を隠す";
+"File" = "ファイル";
+"Close Window" = "ウインドウを閉じる";
+"Edit" = "編集";
+"Copy" = "コピー";
+"Select All" = "すべてを選択";
+"View" = "表示";
+"Toggle Sidebar" = "サイドバーの表示を切り替え";
+"Window" = "ウインドウ";
+"Minimize" = "しまう";
+"Zoom" = "拡大／縮小";
