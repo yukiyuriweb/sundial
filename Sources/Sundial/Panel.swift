@@ -45,15 +45,16 @@ struct PanelView: View {
                             ProjectCard(project: project, period: period) { path.removeLast() }
                         } else {
                             headerCard
-                            if let data, data.shares.isEmpty {
+                            // With none of your own time, projects only agents worked on still open from here
+                            if let data, data.shares.isEmpty, otherProjects.isEmpty {
                                 ContentUnavailableView("No Activity", systemImage: "sun.max",
                                                        description: Text(recorder.paused ? "Recording is paused." : "Time you spend in apps shows up here."))
                                     .card()
                             } else if let data {
-                                // Side by side, stretched to the taller one
+                                // Side by side, stretched to the taller one; no trends when no project had your time
                                 HStack(alignment: .top, spacing: 10) {
                                     sharesCard(data)
-                                    trendsCard(data)
+                                    if !data.trends.isEmpty { trendsCard(data) }
                                 }
                                 .fixedSize(horizontal: false, vertical: true)
                             }
@@ -463,8 +464,13 @@ struct WindowVisibility: NSViewRepresentable {
             report()
         }
 
+        /// Deferred, since this view joins its window in the middle of a SwiftUI update, when changing state
+        /// isn't allowed
         private func report() {
-            onChange(window?.occlusionState.contains(.visible) == true)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                onChange(window?.occlusionState.contains(.visible) == true)
+            }
         }
     }
 }

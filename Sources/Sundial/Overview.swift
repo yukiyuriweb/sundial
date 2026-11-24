@@ -166,12 +166,14 @@ struct HourAxis: View {
     var body: some View {
         GeometryReader { geo in
             ForEach(hourMarks(in: day), id: \.self) { mark in
-                Text(mark, format: .dateTime.hour())
+                let label = mark.formatted(.dateTime.hour())
+                let half = (label as NSString).size(withAttributes: [.font: NSFont.preferredFont(forTextStyle: .caption1)]).width / 2
+                Text(label)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize()
-                    // Centered under its gridline, kept inside at the two ends
-                    .position(x: min(max(8, xPosition(mark, in: day, width: geo.size.width)), geo.size.width - 8), y: 7)
+                    // Centered under its gridline, but kept wholly inside at the two ends
+                    .position(x: min(max(half, xPosition(mark, in: day, width: geo.size.width)), geo.size.width - half), y: 7)
             }
         }
         .frame(height: 14)

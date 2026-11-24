@@ -58,15 +58,17 @@ enum ProjectPalette {
             used.insert(slot)
             result[key] = slot
         }
+        let before = (assigned, seen)
         let now = Date().timeIntervalSince1970
-        for key in result.keys { seen[key] = now }
+        // Marked seen at most once a day, so reloads every few seconds don't rewrite the defaults
+        for key in result.keys where now - (seen[key] ?? 0) > 86400 { seen[key] = now }
         // Forget projects not seen for half a year, so the lists don't grow for good
         for (key, time) in seen where now - time > 180 * 86400 {
             seen[key] = nil
             assigned[key] = nil
         }
-        defaults.set(assigned, forKey: slotsKey)
-        defaults.set(seen, forKey: seenKey)
+        if assigned != before.0 { defaults.set(assigned, forKey: slotsKey) }
+        if seen != before.1 { defaults.set(seen, forKey: seenKey) }
         return result.mapValues(slotColor)
     }
 }

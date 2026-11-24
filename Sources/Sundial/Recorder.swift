@@ -85,6 +85,10 @@ final class Recorder: ObservableObject {
     private func activity(of app: NSRunningApplication, bundle: String) -> Activity {
         let name = app.localizedName ?? bundle
         switch bundle {
+        case Bundle.main.bundleIdentifier:
+            // Sundial itself, with its panel open: an Accessibility query to its own process would be answered
+            // on the main thread it blocks, holding the panel for up to the timeout.
+            return Activity(bundle: bundle, app: name, project: nil, detail: nil)
         case BundleID.ghostty:
             let script = """
                 tell application id "\(BundleID.ghostty)"

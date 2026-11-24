@@ -107,6 +107,8 @@ final class Store: ObservableObject {
 
     init() {
         db = openDatabase()
+        // Records from before time outside a project was kept by app only may still name pages and windows.
+        sqlite3_exec(db, "UPDATE spans SET detail = NULL WHERE project IS NULL AND detail IS NOT NULL", nil, nil, nil)
     }
 
     /// Credits the `interval` seconds up to `now` to the activity. It extends the latest span when that span
