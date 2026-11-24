@@ -101,13 +101,16 @@ func dayRows(_ spans: [Span], day: Range<Date>) -> [DayRow] {
                 blocks.append(span)
             }
         }
-        blocks = blocks.map { $0.lowerBound..<max($0.upperBound, $0.lowerBound.addingTimeInterval(120)) }
+        // Widened within the day: one that would run past midnight grows backwards instead
+        blocks = blocks.map { block in
+            let end = min(max(block.upperBound, block.lowerBound.addingTimeInterval(120)), day.upperBound)
+            return min(block.lowerBound, end.addingTimeInterval(-120))..<end
+        }
         return DayRow(id: project.id, name: project.name ?? String(localized: "No Project"),
                       seconds: project.seconds, muted: project.name == nil, blocks: blocks)
     }
 }
 
-/// A track across the shown part of the day, with hour gridlines and a block for each stretch of work
 /// The part of the day the timeline shows: from an hour before the first block to an hour after the last,
 /// on whole hours and within the day; all of it when there are no blocks
 func timelineRange(_ rows: [DayRow], day: Range<Date>) -> Range<Date> {
@@ -139,6 +142,7 @@ func xPosition(_ date: Date, in day: Range<Date>, width: CGFloat) -> CGFloat {
     width * date.timeIntervalSince(day.lowerBound) / day.upperBound.timeIntervalSince(day.lowerBound)
 }
 
+/// A track across the shown part of the day, with hour gridlines and a block for each stretch of work
 struct DayStrip: View {
     let blocks: [Range<Date>]
     let day: Range<Date>

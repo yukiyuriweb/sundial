@@ -93,7 +93,8 @@ func summarize(_ spans: [Span], agents agentSpans: [AgentSpan], in range: Range<
 }
 
 func formatDuration(_ seconds: TimeInterval) -> String {
-    if seconds < 60 { return String(localized: "Under 1 min") }
+    // "Under 1 min" only for time that was there; none at all reads as 0 min
+    if seconds > 0, seconds < 60 { return String(localized: "Under 1 min") }
     return Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
 }
 

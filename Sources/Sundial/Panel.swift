@@ -32,7 +32,9 @@ struct PanelView: View {
     private var period: Period { Period(rawValue: periodRaw) == .month ? .month : .week }
     private var dayRange: Range<Date> { day..<Calendar.current.date(byAdding: .day, value: 1, to: day)! }
     /// Tall enough for everything, but never past the screen
-    private var maxScrollHeight: CGFloat { (NSScreen.main?.visibleFrame.height ?? 800) - 120 }
+    private var maxScrollHeight: CGFloat { (screenHeight ?? NSScreen.main?.visibleFrame.height ?? 800) - 120 }
+    /// The height of the screen the panel opened on, which may not be the main one
+    @State private var screenHeight: CGFloat?
 
     var body: some View {
         GlassEffectContainer(spacing: 10) {
@@ -73,9 +75,10 @@ struct PanelView: View {
         .frame(width: 700)
         // onAppear and onDisappear don't come every time a menu bar panel opens and closes, so the panel
         // window's own visibility tells.
-        .background(WindowVisibility { visible in
+        .background(WindowVisibility { visible, height in
             model.panelOpen = visible
             if visible {
+                screenHeight = height
                 day = Calendar.current.startOfDay(for: Date())
                 openAtLogin = SMAppService.mainApp.status == .enabled
             }
@@ -97,7 +100,7 @@ struct PanelView: View {
         var seen = Set<String>()
         palette = ProjectPalette.colors(for: keys.filter { seen.insert($0).inserted })
         // Drop what the new period doesn't have
-        path = path.filter { id in id == otherProjectsID || summaries.contains { $0.id == id } }
+        path = path.filter { id in id == otherProjectsID ? !otherProjects.isEmpty : summaries.contains { $0.id == id } }
     }
 
     // MARK: Header
@@ -209,7 +212,9 @@ struct PanelView: View {
                     .help("Next Day")
                     .disabled(day >= Calendar.current.startOfDay(for: Date()))
                 Spacer()
-                Text(formatDuration(rows.reduce(0) { $0 + $1.seconds })).foregroundStyle(.secondary).monospacedDigit()
+                if !rows.isEmpty {
+                    Text(formatDuration(rows.reduce(0) { $0 + $1.seconds })).foregroundStyle(.secondary).monospacedDigit()
+                }
             }
             .buttonStyle(.borderless)
             if rows.isEmpty {
@@ -222,6 +227,8 @@ struct PanelView: View {
                             Text(row.name)
                                 .foregroundStyle(row.muted ? .secondary : .primary)
                                 .lineLimit(1)
+                                // A long name mustn't squeeze the strips to nothing
+                                .frame(maxWidth: 130, alignment: .trailing)
                                 .gridColumnAlignment(.trailing)
                             Text(formatDuration(row.seconds))
                                 .font(.subheadline)
@@ -436,27 +443,33 @@ extension View {
 
 /// Reports whether the window holding it is on screen, from the window's occlusion state
 struct WindowVisibility: NSViewRepresentable {
-    let onChange: @MainActor (Bool) -> Void
+    /// Whether the window is visible, and the visible height of its screen
+    let onChange: @MainActor (Bool, CGFloat?) -> Void
 
     func makeNSView(context: Context) -> Tracker { Tracker(onChange: onChange) }
     func updateNSView(_ view: Tracker, context: Context) { view.onChange = onChange }
 
     final class Tracker: NSView {
-        var onChange: @MainActor (Bool) -> Void
+        var onChange: @MainActor (Bool, CGFloat?) -> Void
         private var observer: NSObjectProtocol?
 
-        init(onChange: @escaping @MainActor (Bool) -> Void) {
+        init(onChange: @escaping @MainActor (Bool, CGFloat?) -> Void) {
             self.onChange = onChange
             super.init(frame: .zero)
         }
 
         required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
 
+        isolated deinit {
+            if let observer { NotificationCenter.default.removeObserver(observer) }
+        }
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             if let observer { NotificationCenter.default.removeObserver(observer) }
             observer = nil
-            guard let window else { return }
+            // Taken out of its window counts as closed
+            guard let window else { return report() }
             observer = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification,
                                                               object: window, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.report() }
@@ -469,7 +482,7 @@ struct WindowVisibility: NSViewRepresentable {
         private func report() {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                onChange(window?.occlusionState.contains(.visible) == true)
+                onChange(window?.occlusionState.contains(.visible) == true, window?.screen?.visibleFrame.height)
             }
         }
     }
