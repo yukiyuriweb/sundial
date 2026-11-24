@@ -15,10 +15,11 @@ struct SwitchStats {
     let visits: [TimeInterval]
     /// Switches that went straight back to the project before, within five minutes (A → B → A)
     let backAndForth: Int
-    /// From the first activity to the last
-    let span: TimeInterval
+    /// Time spent on projects, which the rate is per: time outside any project and gaps in recording would
+    /// only water it down
+    let projectTime: TimeInterval
 
-    var perHour: Double? { span >= 600 ? Double(switches.count) / (span / 3600) : nil }
+    var perHour: Double? { projectTime >= 600 ? Double(switches.count) / (projectTime / 3600) : nil }
 
     var medianVisit: TimeInterval? {
         guard !visits.isEmpty else { return nil }
@@ -31,14 +32,11 @@ struct SwitchStats {
 
 func switching(_ spans: [Span], in range: Range<Date>) -> SwitchStats {
     var visits: [(start: Date, end: Date, project: String)] = []
-    var first: Date?
-    var last: Date?
+    var projectTime: TimeInterval = 0
     for span in spans.sorted(by: { $0.start < $1.start }) {
         let start = max(span.start, range.lowerBound), end = min(span.end, range.upperBound)
-        guard start < end else { continue }
-        first = min(first ?? start, start)
-        last = max(last ?? end, end)
-        guard let project = span.project?.lowercased() else { continue }
+        guard start < end, let project = span.project?.lowercased() else { continue }
+        projectTime += end.timeIntervalSince(start)
         if let previous = visits.last, previous.project == project, start.timeIntervalSince(previous.end) < 300 {
             visits[visits.count - 1].end = max(previous.end, end)
         } else {
@@ -55,8 +53,7 @@ func switching(_ spans: [Span], in range: Range<Date>) -> SwitchStats {
         }
     }
     return SwitchStats(switches: switches, visits: visits.map { $0.end.timeIntervalSince($0.start) },
-                       backAndForth: backAndForth,
-                       span: first.flatMap { f in last.map { $0.timeIntervalSince(f) } } ?? 0)
+                       backAndForth: backAndForth, projectTime: projectTime)
 }
 
 /// Switches in each half hour of the range, starting at its start (a whole hour)
@@ -76,11 +73,12 @@ func switchBins(_ switches: [Date], in range: Range<Date>) -> [(start: Date, cou
 func usualSwitchesPerHalfHour(_ spans: [Span], days: [Range<Date>]) -> Double? {
     var counts: [Int] = []
     for day in days {
-        let stats = switching(spans, in: day)
-        guard let first = spans.map({ max($0.start, day.lowerBound) }).filter({ day.contains($0) }).min(),
-              let last = spans.map({ min($0.end, day.upperBound) }).filter({ $0 > day.lowerBound }).max(),
+        // Only this day's spans set its bounds; a day with no activity adds nothing
+        let mine = spans.filter { $0.end > day.lowerBound && $0.start < day.upperBound }
+        guard let first = mine.map({ max($0.start, day.lowerBound) }).min(),
+              let last = mine.map({ min($0.end, day.upperBound) }).max(),
               first < last else { continue }
-        counts += switchBins(stats.switches, in: first..<last).map(\.count)
+        counts += switchBins(switching(mine, in: day).switches, in: first..<last).map(\.count)
     }
     guard counts.count >= 4 else { return nil }
     return Double(counts.sorted()[counts.count * 3 / 4])
