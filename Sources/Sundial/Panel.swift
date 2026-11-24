@@ -1,8 +1,9 @@
 import ServiceManagement
 import SwiftUI
 
-/// The menu bar panel: the overview for the last 7 or 30 days in glass cards, as in MemoryLens. Clicking a
-/// project switches the panel to that project's breakdown by agent, app and file.
+/// The menu bar panel: the overview for the last 7 or 30 days in glass cards, as in MemoryLens, laid out as a
+/// grid so it fits without scrolling: figures across the top, project shares beside the trends, and the day
+/// timeline across the bottom. Clicking a project switches the panel to its breakdown by agent, app and file.
 struct PanelView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var store: Store
@@ -32,20 +33,26 @@ struct PanelView: View {
                         } else {
                             headerCard
                             if let data, !data.shares.isEmpty {
-                                sharesCard(data)
-                                trendsCard(data)
+                                // Side by side, stretched to the taller one
+                                HStack(alignment: .top, spacing: 10) {
+                                    sharesCard(data)
+                                    trendsCard(data)
+                                }
+                                .fixedSize(horizontal: false, vertical: true)
                             }
                             dayCard
                         }
                     }
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
                 }
+                // Scrolls only on a screen too short for the grid, and never shows a scroller over the cards
+                .scrollIndicators(.never)
                 .frame(height: min(contentHeight, maxScrollHeight))
                 footer
             }
         }
         .padding(12)
-        .frame(width: 480)
+        .frame(width: 880)
         .onAppear { model.panelOpen = true }
         .onDisappear { model.panelOpen = false }
         .task(id: store.revision) { reload() }
@@ -69,27 +76,24 @@ struct PanelView: View {
     // MARK: Header
 
     private var headerCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        HStack(alignment: .top, spacing: 16) {
+            if let data {
+                figure("Total", formatDuration(data.total))
+                figure("Today", formatDuration(data.today))
+                figure("Daily Average", formatDuration(data.dailyAverage))
+                figure("Most Active Day",
+                       data.busiest.map { $0.day.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()) } ?? "–",
+                       detail: data.busiest.map { formatDuration($0.seconds) })
+            } else {
+                Spacer()
+            }
             Picker("Period", selection: $periodRaw) {
                 Text("7 Days").tag(Period.week.rawValue)
                 Text("30 Days").tag(Period.month.rawValue)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            if let data {
-                Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 10) {
-                    GridRow {
-                        figure("Total", formatDuration(data.total))
-                        figure("Today", formatDuration(data.today))
-                    }
-                    GridRow {
-                        figure("Daily Average", formatDuration(data.dailyAverage))
-                        figure("Most Active Day",
-                               data.busiest.map { $0.day.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()) } ?? "–",
-                               detail: data.busiest.map { formatDuration($0.seconds) })
-                    }
-                }
-            }
+            .fixedSize()
         }
         .card()
     }
@@ -121,7 +125,7 @@ struct PanelView: View {
                         Text(share.name)
                             .foregroundStyle(share.muted ? .secondary : .primary)
                             .lineLimit(1)
-                            .frame(width: 110, alignment: .trailing)
+                            .frame(width: 100, alignment: .trailing)
                         GeometryReader { geo in
                             UnevenRoundedRectangle(bottomTrailingRadius: 4, topTrailingRadius: 4)
                                 .fill(share.muted ? mutedColor : palette[share.id] ?? mutedColor)
@@ -134,7 +138,7 @@ struct PanelView: View {
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                             .lineLimit(1)
-                            .frame(width: 120, alignment: .trailing)
+                            .frame(width: 112, alignment: .trailing)
                     }
                 }
             }
@@ -150,7 +154,7 @@ struct PanelView: View {
         let peak = data.trends.flatMap(\.daily).map(\.seconds).max() ?? 0
         return VStack(alignment: .leading, spacing: 8) {
             Text("Trends").font(.headline)
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 14)], alignment: .leading, spacing: 14) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 3), alignment: .leading, spacing: 14) {
                 ForEach(data.trends) { trend in
                     TrendCell(trend: trend, color: palette[trend.id] ?? mutedColor, peakHours: max(peak / 3600, 0.25), period: period)
                 }
@@ -331,7 +335,8 @@ extension View {
     /// A glass card, as in MemoryLens
     func card() -> some View {
         padding(14)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // Fills its cell, so cards side by side end at the same height
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 }

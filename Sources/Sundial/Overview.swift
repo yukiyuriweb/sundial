@@ -195,7 +195,7 @@ struct TrendCell: View {
                 }
             }
             .chartXSelection(value: $selected)
-            .frame(height: 90)
+            .frame(height: 64)
         }
     }
 }
