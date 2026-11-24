@@ -60,6 +60,11 @@ enum ProjectPalette {
         }
         let now = Date().timeIntervalSince1970
         for key in result.keys { seen[key] = now }
+        // Forget projects not seen for half a year, so the lists don't grow for good
+        for (key, time) in seen where now - time > 180 * 86400 {
+            seen[key] = nil
+            assigned[key] = nil
+        }
         defaults.set(assigned, forKey: slotsKey)
         defaults.set(seen, forKey: seenKey)
         return result.mapValues(slotColor)

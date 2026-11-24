@@ -18,6 +18,7 @@ struct PanelView: View {
     /// The project shown in detail: its id, or "" for time outside any project
     @State private var selected: String?
     @State private var contentHeight: CGFloat = 400
+    @State private var openAtLogin = SMAppService.mainApp.status == .enabled
 
     private var period: Period { Period(rawValue: periodRaw) == .month ? .month : .week }
     private var dayRange: Range<Date> { day..<Calendar.current.date(byAdding: .day, value: 1, to: day)! }
@@ -33,7 +34,11 @@ struct PanelView: View {
                             ProjectCard(project: project, period: period) { self.selected = nil }
                         } else {
                             headerCard
-                            if let data, !data.shares.isEmpty {
+                            if let data, data.shares.isEmpty {
+                                ContentUnavailableView("No Activity", systemImage: "sun.max",
+                                                       description: Text(recorder.paused ? "Recording is paused." : "Time you spend in apps shows up here."))
+                                    .card()
+                            } else if let data {
                                 // Side by side, stretched to the taller one
                                 HStack(alignment: .top, spacing: 10) {
                                     sharesCard(data)
@@ -54,8 +59,15 @@ struct PanelView: View {
         }
         .padding(12)
         .frame(width: 700)
-        .onAppear { model.panelOpen = true }
-        .onDisappear { model.panelOpen = false }
+        // onAppear and onDisappear don't come every time a menu bar panel opens and closes, so the panel
+        // window's own visibility tells.
+        .background(WindowVisibility { visible in
+            model.panelOpen = visible
+            if visible {
+                day = Calendar.current.startOfDay(for: Date())
+                openAtLogin = SMAppService.mainApp.status == .enabled
+            }
+        })
         .task(id: store.revision) { reload() }
         .onChange(of: periodRaw) { reload() }
         .onChange(of: day) { reload() }
@@ -72,6 +84,7 @@ struct PanelView: View {
         let keys = (data?.shares.filter { !$0.muted }.map(\.id) ?? []) + rows.filter { !$0.muted }.map(\.id)
         var seen = Set<String>()
         palette = ProjectPalette.colors(for: keys.filter { seen.insert($0).inserted })
+        if let selected, !summaries.contains(where: { $0.id == selected }) { self.selected = nil }
     }
 
     // MARK: Header
@@ -168,7 +181,8 @@ struct PanelView: View {
             }
             .buttonStyle(.borderless)
             if rows.isEmpty {
-                Text("No activity on this day.").foregroundStyle(.secondary).frame(maxWidth: .infinity, minHeight: 40)
+                ContentUnavailableView("No activity on this day.", systemImage: "sun.horizon")
+                    .frame(maxWidth: .infinity, minHeight: 80)
             } else {
                 Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
                     ForEach(rows) { row in
@@ -189,7 +203,7 @@ struct PanelView: View {
                     GridRow {
                         Color.clear.frame(width: 0, height: 0)
                         Color.clear.frame(width: 0, height: 0)
-                        HourAxis()
+                        HourAxis(day: dayRange)
                     }
                 }
                 .font(.callout)
@@ -223,13 +237,14 @@ struct PanelView: View {
             Menu {
                 Button(recorder.paused ? "Resume Recording" : "Pause Recording") { recorder.paused.toggle() }
                 Toggle("Open at Login", isOn: Binding(
-                    get: { SMAppService.mainApp.status == .enabled },
+                    get: { openAtLogin },
                     set: { on in
                         do {
                             if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
                         } catch {
-                            NSLog("Sundial couldn't change Open at Login: %@", error.localizedDescription)
+                            NSAlert(error: error).runModal()
                         }
+                        openAtLogin = SMAppService.mainApp.status == .enabled
                     }))
                 if !recorder.hasAccessibility {
                     Button("Allow Accessibility Access…") { recorder.requestAccessibility() }
@@ -334,5 +349,41 @@ extension View {
             // Fills its cell, so cards side by side end at the same height
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .glassEffect(.regular, in: .rect(cornerRadius: 22))
+    }
+}
+
+/// Reports whether the window holding it is on screen, from the window's occlusion state
+struct WindowVisibility: NSViewRepresentable {
+    let onChange: @MainActor (Bool) -> Void
+
+    func makeNSView(context: Context) -> Tracker { Tracker(onChange: onChange) }
+    func updateNSView(_ view: Tracker, context: Context) { view.onChange = onChange }
+
+    final class Tracker: NSView {
+        var onChange: @MainActor (Bool) -> Void
+        private var observer: NSObjectProtocol?
+
+        init(onChange: @escaping @MainActor (Bool) -> Void) {
+            self.onChange = onChange
+            super.init(frame: .zero)
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let observer { NotificationCenter.default.removeObserver(observer) }
+            observer = nil
+            guard let window else { return }
+            observer = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification,
+                                                              object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.report() }
+            }
+            report()
+        }
+
+        private func report() {
+            onChange(window?.occlusionState.contains(.visible) == true)
+        }
     }
 }

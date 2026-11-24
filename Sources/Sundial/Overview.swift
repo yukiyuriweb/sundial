@@ -105,6 +105,20 @@ func dayRows(_ spans: [Span], day: Range<Date>) -> [DayRow] {
 }
 
 /// A 24-hour track with gridlines every three hours and a block for each stretch of work
+/// Every third hour of the day, through midnight at its end, at the clock times themselves: on a day that
+/// changes to or from daylight saving time, which lasts 23 or 25 hours, they aren't evenly spaced.
+func hourMarks(of day: Range<Date>) -> [(hour: Int, date: Date)] {
+    stride(from: 0, through: 24, by: 3).map { hour in
+        (hour, hour == 24 ? day.upperBound
+            : Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: day.lowerBound) ?? day.lowerBound)
+    }
+}
+
+/// Where a moment falls across a strip of the given width
+func xPosition(_ date: Date, in day: Range<Date>, width: CGFloat) -> CGFloat {
+    width * date.timeIntervalSince(day.lowerBound) / day.upperBound.timeIntervalSince(day.lowerBound)
+}
+
 struct DayStrip: View {
     let blocks: [Range<Date>]
     let day: Range<Date>
@@ -112,10 +126,9 @@ struct DayStrip: View {
 
     var body: some View {
         Canvas { context, size in
-            let length = day.upperBound.timeIntervalSince(day.lowerBound)
-            func x(_ date: Date) -> CGFloat { size.width * date.timeIntervalSince(day.lowerBound) / length }
-            for hour in stride(from: 0, through: 24, by: 3) {
-                let gx = size.width * CGFloat(hour) / 24
+            func x(_ date: Date) -> CGFloat { xPosition(date, in: day, width: size.width) }
+            for mark in hourMarks(of: day) {
+                let gx = x(mark.date)
                 context.fill(Path(CGRect(x: gx - 0.25, y: 0, width: 0.5, height: size.height)), with: .color(.secondary.opacity(0.3)))
             }
             for block in blocks {
@@ -128,15 +141,17 @@ struct DayStrip: View {
 
 /// Hour labels under the day strips, every three hours
 struct HourAxis: View {
+    let day: Range<Date>
+
     var body: some View {
         GeometryReader { geo in
-            ForEach(Array(stride(from: 0, to: 24, by: 3)), id: \.self) { hour in
-                Text(Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date())!, format: .dateTime.hour())
+            ForEach(hourMarks(of: day).filter { $0.hour < 24 }, id: \.hour) { mark in
+                Text(mark.date, format: .dateTime.hour())
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize()
                     // Centered under its gridline, except midnight, which would be cut off at the edge
-                    .position(x: max(6, geo.size.width * CGFloat(hour) / 24), y: 7)
+                    .position(x: max(6, xPosition(mark.date, in: day, width: geo.size.width)), y: 7)
             }
         }
         .frame(height: 14)
