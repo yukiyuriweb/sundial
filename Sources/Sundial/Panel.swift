@@ -177,7 +177,7 @@ struct PanelView: View {
             }
         }
         .font(.callout)
-        .card()
+        .card(fill: true)
     }
 
     // MARK: Trends
@@ -193,7 +193,7 @@ struct PanelView: View {
                 }
             }
         }
-        .card()
+        .card(fill: true)
     }
 
     // MARK: Day
@@ -370,7 +370,8 @@ struct ProjectCard: View {
             }
             if !project.details.isEmpty {
                 section(project.name == nil ? "Windows" : "Files, Folders and Pages") {
-                    ForEach(project.details.prefix(30)) { detail in
+                    // The top ten tell where most of the time went; a panel is for a glance
+                    ForEach(project.details.prefix(10)) { detail in
                         ShareRow(share: detail, total: project.seconds) {
                             Image(nsImage: appIcon(detail.bundle)).resizable().frame(width: 16, height: 16)
                         }
@@ -414,11 +415,12 @@ struct HoverRow<Content: View>: View {
 }
 
 extension View {
-    /// A glass card, as in MemoryLens
-    func card() -> some View {
+    /// A glass card, as in MemoryLens. `fill` stretches it to the height it is offered, so cards side by side
+    /// end at the same height; elsewhere it stays off, since in the scroll view it would shrink a long card
+    /// to the visible height and leave nothing to scroll.
+    func card(fill: Bool = false) -> some View {
         padding(14)
-            // Fills its cell, so cards side by side end at the same height
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .frame(maxWidth: .infinity, maxHeight: fill ? .infinity : nil, alignment: .topLeading)
             .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 }
