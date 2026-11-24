@@ -223,14 +223,14 @@ struct PanelView: View {
                                 .foregroundStyle(.secondary)
                                 .monospacedDigit()
                                 .gridColumnAlignment(.trailing)
-                            DayStrip(blocks: row.blocks, day: dayRange, color: row.muted ? mutedColor : palette[row.id] ?? mutedColor)
+                            DayStrip(blocks: row.blocks, day: timelineRange(rows, day: dayRange), color: row.muted ? mutedColor : palette[row.id] ?? mutedColor)
                                 .frame(height: 14)
                         }
                     }
                     GridRow {
                         Color.clear.frame(width: 0, height: 0)
                         Color.clear.frame(width: 0, height: 0)
-                        HourAxis(day: dayRange)
+                        HourAxis(day: timelineRange(rows, day: dayRange))
                     }
                 }
                 .font(.callout)

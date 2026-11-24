@@ -79,4 +79,3 @@
 "More" = "その他";
 "Back" = "戻る";
 "^[%lld project](inflect: true)" = "%lld 件のプロジェクト";
-"Time agents spent working" = "エージェントが作業していた時間";
