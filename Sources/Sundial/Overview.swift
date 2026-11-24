@@ -33,6 +33,9 @@ struct OverviewData {
     let trends: [Trend]
 }
 
+/// The id of the "Other Projects" share, which no project id (a lowercased folder name) can be
+let otherProjectsID = "\u{0}other"
+
 /// The projects past the first eight fold into "Other Projects"; trends show the first six.
 func overview(_ spans: [Span], period: Period, now: Date = Date()) -> OverviewData {
     let calendar = Calendar.current
@@ -54,7 +57,7 @@ func overview(_ spans: [Span], period: Period, now: Date = Date()) -> OverviewDa
     var shares = named.prefix(8).map { OverviewData.Share(id: $0.id, name: $0.name!, seconds: $0.seconds, muted: false) }
     let rest = named.dropFirst(8).reduce(0) { $0 + $1.seconds }
     if rest > 0 {
-        shares.append(OverviewData.Share(id: "\u{0}other", name: String(localized: "Other Projects"), seconds: rest, muted: true))
+        shares.append(OverviewData.Share(id: otherProjectsID, name: String(localized: "Other Projects"), seconds: rest, muted: true))
     }
     if let none = projects.first(where: { $0.name == nil }) {
         shares.append(OverviewData.Share(id: "\u{0}none", name: String(localized: "No Project"), seconds: none.seconds, muted: true))

@@ -15,8 +15,17 @@ struct PanelView: View {
     @State private var summaries: [ProjectSummary] = []
     @State private var rows: [DayRow] = []
     @State private var palette: [String: Color] = [:]
-    /// The project shown in detail: its id, or "" for time outside any project
-    @State private var selected: String?
+    /// What the panel has opened, last on top: a project's id ("" for time outside any project), or
+    /// otherProjectsID for the list of projects the overview leaves out
+    @State private var path: [String] = []
+    private var selected: String? { path.last }
+
+    /// Projects with no row of their own in the Projects card: past the first eight, and those only agents
+    /// worked on, which have none of your own time
+    private var otherProjects: [ProjectSummary] {
+        let shown = Set(data?.shares.filter { !$0.muted }.map(\.id) ?? [])
+        return summaries.filter { $0.name != nil && !shown.contains($0.id) }
+    }
     @State private var contentHeight: CGFloat = 400
     @State private var openAtLogin = SMAppService.mainApp.status == .enabled
 
@@ -30,8 +39,10 @@ struct PanelView: View {
             VStack(spacing: 10) {
                 ScrollView {
                     VStack(spacing: 10) {
-                        if let selected, let project = summaries.first(where: { $0.id == selected }) {
-                            ProjectCard(project: project, period: period) { self.selected = nil }
+                        if selected == otherProjectsID {
+                            OtherProjectsCard(projects: otherProjects, period: period) { path.append($0) } back: { path.removeLast() }
+                        } else if let selected, let project = summaries.first(where: { $0.id == selected }) {
+                            ProjectCard(project: project, period: period) { path.removeLast() }
                         } else {
                             headerCard
                             if let data, data.shares.isEmpty {
@@ -84,7 +95,8 @@ struct PanelView: View {
         let keys = (data?.shares.filter { !$0.muted }.map(\.id) ?? []) + rows.filter { !$0.muted }.map(\.id)
         var seen = Set<String>()
         palette = ProjectPalette.colors(for: keys.filter { seen.insert($0).inserted })
-        if let selected, !summaries.contains(where: { $0.id == selected }) { self.selected = nil }
+        // Drop what the new period doesn't have
+        path = path.filter { id in id == otherProjectsID || summaries.contains { $0.id == id } }
     }
 
     // MARK: Header
@@ -120,9 +132,9 @@ struct PanelView: View {
         return VStack(alignment: .leading, spacing: 6) {
             Text("Projects").font(.headline)
             ForEach(data.shares) { share in
-                // "Other Projects" is many projects at once, so it has no detail to open
-                let target: String? = share.id == "\u{0}other" ? nil : share.id == "\u{0}none" ? "" : share.id
-                HoverRow(enabled: target != nil) { selected = target } content: {
+                // "Other Projects" opens the list of the projects in it
+                let target = share.id == "\u{0}none" ? "" : share.id
+                HoverRow(enabled: true) { path.append(target) } content: {
                     HStack(spacing: 10) {
                         Text(share.name)
                             .foregroundStyle(share.muted ? .secondary : .primary)
@@ -141,6 +153,21 @@ struct PanelView: View {
                             .monospacedDigit()
                             .lineLimit(1)
                             .frame(width: 104, alignment: .trailing)
+                    }
+                }
+            }
+            // Projects only agents worked on have no time of their own to fold into a row
+            if !data.shares.contains(where: { $0.id == otherProjectsID }), !otherProjects.isEmpty {
+                HoverRow(enabled: true) { path.append(otherProjectsID) } content: {
+                    HStack(spacing: 10) {
+                        Text("Other Projects")
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .frame(width: 80, alignment: .trailing)
+                        Spacer()
+                        Text("^[\(otherProjects.count) project](inflect: true)")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
@@ -260,6 +287,46 @@ struct PanelView: View {
         }
         .font(.callout)
         .buttonStyle(.glass)
+    }
+}
+
+/// The projects without a row of their own in the overview, with your time and the agents' time on each
+struct OtherProjectsCard: View {
+    let projects: [ProjectSummary]
+    let period: Period
+    let open: (String) -> Void
+    let back: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Button(action: back) { Image(systemName: "chevron.left") }
+                    .buttonStyle(.borderless)
+                    .help("Back")
+                Text("Other Projects").font(.headline)
+                Spacer()
+                Text(period.title).font(.subheadline).foregroundStyle(.secondary)
+            }
+            ForEach(projects) { project in
+                HoverRow(enabled: true) { open(project.id) } content: {
+                    HStack {
+                        Text(project.name ?? "").lineLimit(1)
+                        Spacer()
+                        if project.seconds > 0 {
+                            Text(formatDuration(project.seconds)).foregroundStyle(.secondary).monospacedDigit()
+                        }
+                        if project.agentSeconds > 0 {
+                            Label(formatDuration(project.agentSeconds), systemImage: "sparkles")
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                                .help("Time agents spent working")
+                        }
+                    }
+                }
+            }
+        }
+        .font(.callout)
+        .card()
     }
 }
 
