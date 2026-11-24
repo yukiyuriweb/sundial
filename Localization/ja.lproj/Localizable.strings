@@ -83,3 +83,11 @@
 "Sundial is running in the menu bar" = "Sundial はメニューバーで動いています";
 "Click its icon and today's total in the menu bar to see the overview. If you can't see it, the menu bar may have no room for it, or it may be turned off in System Settings › Menu Bar." = "メニューバーのアイコンと今日の合計をクリックすると、概要が開きます。見当たらない場合は、メニューバーに表示する場所がないか、システム設定の「メニューバー」で表示が切られている可能性があります。";
 "OK" = "OK";
+/* Switching */
+"Switches" = "切り替え";
+"Median Stay" = "滞在の中央値";
+"Back and Forth" = "行ったり来たり";
+"%@ per hour" = "%@ 回／時";
+"usually %@" = "ふだん %@";
+"%@: ^[%lld switch](inflect: true)" = "%1$@：%2$lld 回の切り替え";
+"Switches between projects, with time outside any project left out. Frequent, short back-and-forth wears on attention." = "プロジェクト同士の切り替えです（プロジェクトの外の時間は数えません）。短い間隔で行ったり来たりするほど、注意力を消耗します。";

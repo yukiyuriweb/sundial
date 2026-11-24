@@ -14,6 +14,11 @@ struct PanelView: View {
     @State private var data: OverviewData?
     @State private var summaries: [ProjectSummary] = []
     @State private var rows: [DayRow] = []
+    @State private var switches: SwitchStats?
+    /// Over the seven days before the shown one: half hours past this many switches are busier than usual
+    @State private var usualHalfHour: Double?
+    /// The median of those days' switches per hour
+    @State private var usualRate: Double?
     @State private var palette: [String: Color] = [:]
     /// What the panel has opened, last on top: a project's id ("" for time outside any project), or
     /// otherProjectsID for the list of projects the overview leaves out
@@ -99,7 +104,17 @@ struct PanelView: View {
         let spans = store.spans(in: range)
         data = overview(spans, period: period, now: now)
         summaries = summarize(spans, agents: store.agentSpans(in: range), in: range)
-        rows = dayRows(store.spans(in: dayRange), day: dayRange)
+        let daySpans = store.spans(in: dayRange)
+        rows = dayRows(daySpans, day: dayRange)
+        let calendar = Calendar.current
+        let previousDays = (1...7).map { n in
+            calendar.date(byAdding: .day, value: -n, to: day)!..<calendar.date(byAdding: .day, value: 1 - n, to: day)!
+        }
+        let previous = store.spans(in: previousDays.last!.lowerBound..<day)
+        switches = switching(daySpans, in: dayRange)
+        usualHalfHour = usualSwitchesPerHalfHour(previous, days: previousDays)
+        let rates = previousDays.compactMap { switching(previous, in: $0).perHour }.sorted()
+        usualRate = rates.isEmpty ? nil : rates[rates.count / 2]
         // The period's projects first, by time, then any only the shown day has
         let keys = (data?.shares.filter { !$0.muted }.map(\.id) ?? []) + rows.filter { !$0.muted }.map(\.id)
         var seen = Set<String>()
@@ -222,11 +237,31 @@ struct PanelView: View {
                 }
             }
             .buttonStyle(.borderless)
+            if let switches, !switches.visits.isEmpty {
+                switchFigures(switches)
+            }
             if rows.isEmpty {
                 ContentUnavailableView("No activity on this day.", systemImage: "sun.horizon")
                     .frame(maxWidth: .infinity, minHeight: 80)
             } else {
                 Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 6) {
+                    if let switches, !switches.switches.isEmpty {
+                        let range = timelineRange(rows, day: dayRange)
+                        GridRow {
+                            Text("Switches")
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .frame(maxWidth: 130, alignment: .trailing)
+                                .gridColumnAlignment(.trailing)
+                            Text(switches.switches.count, format: .number)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .monospacedDigit()
+                                .gridColumnAlignment(.trailing)
+                            SwitchStrip(bins: switchBins(switches.switches, in: range), range: range, usual: usualHalfHour)
+                                .frame(height: 14)
+                        }
+                    }
                     ForEach(rows) { row in
                         GridRow {
                             Text(row.name)
@@ -254,6 +289,30 @@ struct PanelView: View {
             }
         }
         .card()
+    }
+
+    /// The day's switching: how often, how long each stay lasted, and how much was going straight back
+    private func switchFigures(_ stats: SwitchStats) -> some View {
+        HStack(alignment: .top, spacing: 20) {
+            switchFigure("Switches", stats.perHour.map { String(localized: "\($0.formatted(.number.precision(.fractionLength(1)))) per hour") } ?? "–",
+                         usual: usualRate.map { String(localized: "usually \($0.formatted(.number.precision(.fractionLength(1)))))") })
+            switchFigure("Median Stay", stats.medianVisit.map {
+                Duration.seconds($0).formatted(.units(allowed: [.hours, .minutes, .seconds], width: .abbreviated, maximumUnitCount: 2))
+            } ?? "–")
+            switchFigure("Back and Forth", stats.backAndForthShare.map { $0.formatted(.percent.precision(.fractionLength(0))) } ?? "–")
+            Spacer()
+        }
+        .help("Switches between projects, with time outside any project left out. Frequent, short back-and-forth wears on attention.")
+    }
+
+    private func switchFigure(_ label: LocalizedStringKey, _ value: String, usual: String? = nil) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label).font(.caption).foregroundStyle(.secondary)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(value).font(.callout.weight(.semibold)).monospacedDigit()
+                if let usual { Text(usual).font(.caption).foregroundStyle(.secondary).monospacedDigit() }
+            }
+        }
     }
 
     private func move(_ days: Int) {
