@@ -129,6 +129,10 @@ struct PanelView: View {
     /// Ranked horizontal bars on one baseline, largest first; a click opens the project
     private func sharesCard(_ data: OverviewData) -> some View {
         let longest = data.shares.map(\.seconds).max() ?? 1
+        // As wide as the longest name shown, so none is cut short, within a limit that leaves room for the bars
+        let names = data.shares.map(\.name) + [String(localized: "Other Projects")]
+        let font = NSFont.preferredFont(forTextStyle: .callout)
+        let nameWidth = min(130, ceil(names.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 80))
         return VStack(alignment: .leading, spacing: 6) {
             Text("Projects").font(.headline)
             ForEach(data.shares) { share in
@@ -139,7 +143,7 @@ struct PanelView: View {
                         Text(share.name)
                             .foregroundStyle(share.muted ? .secondary : .primary)
                             .lineLimit(1)
-                            .frame(width: 80, alignment: .trailing)
+                            .frame(width: nameWidth, alignment: .trailing)
                         GeometryReader { geo in
                             UnevenRoundedRectangle(bottomTrailingRadius: 4, topTrailingRadius: 4)
                                 .fill(share.muted ? mutedColor : palette[share.id] ?? mutedColor)
@@ -163,7 +167,7 @@ struct PanelView: View {
                         Text("Other Projects")
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
-                            .frame(width: 80, alignment: .trailing)
+                            .frame(width: nameWidth, alignment: .trailing)
                         Spacer()
                         Text("^[\(otherProjects.count) project](inflect: true)")
                             .font(.subheadline)
