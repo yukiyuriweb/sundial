@@ -70,3 +70,11 @@
 "Hours" = "時間";
 "Start" = "開始";
 "End" = "終了";
+
+/* Panel */
+"7 Days" = "7 日間";
+"30 Days" = "30 日間";
+"Recording Paused" = "記録を一時停止中";
+"Accessibility access needed" = "アクセシビリティへのアクセスが必要です";
+"More" = "その他";
+"Back" = "戻る";

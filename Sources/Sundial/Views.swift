@@ -2,34 +2,15 @@ import AppKit
 import SwiftUI
 
 enum Period: String, CaseIterable, Identifiable {
-    case today, yesterday, week, month
+    case today, week, month
     var id: Self { self }
 
     var title: LocalizedStringKey {
         switch self {
         case .today: "Today"
-        case .yesterday: "Yesterday"
         case .week: "Last 7 Days"
         case .month: "Last 30 Days"
         }
-    }
-
-    var symbol: String {
-        switch self {
-        case .today: "sun.max"
-        case .yesterday: "sun.horizon"
-        case .week: "calendar"
-        case .month: "calendar.badge.clock"
-        }
-    }
-
-    /// Hours for a single day, days for longer periods
-    var unit: Calendar.Component { self == .today || self == .yesterday ? .hour : .day }
-
-    /// What the timeline shows: all of today rather than today until now
-    func chartDomain(now: Date = Date()) -> Range<Date> {
-        let r = range(now: now)
-        return r.lowerBound..<Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 1, to: r.upperBound.addingTimeInterval(-1))!)
     }
 
     func range(now: Date = Date()) -> Range<Date> {
@@ -38,7 +19,6 @@ enum Period: String, CaseIterable, Identifiable {
         func daysAgo(_ n: Int) -> Date { calendar.date(byAdding: .day, value: -n, to: today)! }
         switch self {
         case .today: return today..<now
-        case .yesterday: return daysAgo(1)..<today
         case .week: return daysAgo(6)..<now
         case .month: return daysAgo(29)..<now
         }
@@ -122,196 +102,6 @@ func appIcon(_ bundle: String) -> NSImage {
         return NSImage(systemSymbolName: "app", accessibilityDescription: nil)!
     }
     return NSWorkspace.shared.icon(forFile: url.path)
-}
-
-enum SidebarItem: Hashable {
-    case overview
-    case period(Period)
-}
-
-struct ContentView: View {
-    @EnvironmentObject private var store: Store
-    @EnvironmentObject private var recorder: Recorder
-    @State private var sidebar: SidebarItem? = .overview
-    private var period: Period? {
-        if case .period(let p) = sidebar { p } else { nil }
-    }
-    @State private var selection: String?
-    @State private var totals: [Period: TimeInterval] = [:]
-    @State private var projects: [ProjectSummary] = []
-    @State private var buckets: [Bucket] = []
-    @State private var palette: [String: Color] = [:]
-
-    var body: some View {
-        NavigationSplitView {
-            List(selection: $sidebar) {
-                Label("Overview", systemImage: "chart.bar.xaxis")
-                    .tag(SidebarItem.overview)
-                Section("Periods") {
-                    ForEach(Period.allCases) { p in
-                        Label(p.title, systemImage: p.symbol)
-                            .badge(Text((totals[p] ?? 0) > 0 ? formatDuration(totals[p]!) : ""))
-                            .tag(SidebarItem.period(p))
-                    }
-                }
-            }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
-        } detail: {
-            // The Overview takes the whole width; a period lists its projects beside the one selected.
-            if sidebar == .overview || sidebar == nil {
-                OverviewView()
-            } else {
-                HSplitView {
-                    projectList
-                        .frame(minWidth: 260, idealWidth: 320, maxWidth: 480)
-                    Group {
-                        if let project = projects.first(where: { $0.id == selection }) {
-                            ProjectDetail(project: project)
-                        } else {
-                            ContentUnavailableView("Select a Project", systemImage: "folder")
-                        }
-                    }
-                    .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
-                }
-            }
-        }
-        .toolbar {
-            if !recorder.hasAccessibility {
-                Button { recorder.requestAccessibility() } label: {
-                    Label("Allow Accessibility", systemImage: "exclamationmark.triangle")
-                }
-                .help("Sundial needs Accessibility access to see which file CotEditor and Markdown Preview have open.")
-            }
-            Button { recorder.paused.toggle() } label: {
-                recorder.paused
-                    ? Label("Resume Recording", systemImage: "record.circle")
-                    : Label("Pause Recording", systemImage: "pause.circle")
-            }
-            .help(recorder.paused ? "Resume Recording" : "Pause Recording")
-        }
-        .task(id: store.revision) { reload() }
-        .onChange(of: sidebar) { reload() }
-    }
-
-    private var projectList: some View {
-        List(selection: $selection) {
-            if !buckets.isEmpty, let period {
-                let drawn = Set(buckets.map(\.project))
-                let all = timelineSeries(projects)
-                let series = all.filter(drawn.contains)
-                let colors = series.map { name in
-                    projects.first { $0.name == name }.flatMap { palette[$0.id] } ?? mutedColor
-                }
-                TimelineChart(buckets: buckets, series: series, colors: colors,
-                              domain: period.chartDomain(), unit: period.unit)
-                    .frame(height: 150)
-                    .padding(.vertical, 6)
-                    .selectionDisabled()
-            }
-            ForEach(projects) { project in
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(project.name ?? String(localized: "No Project"))
-                            .font(.headline)
-                            .foregroundStyle(project.name == nil ? .secondary : .primary)
-                        Spacer()
-                        // A project only agents worked on has none of your own time to show
-                        if project.seconds > 0 {
-                            Text(formatDuration(project.seconds))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                        }
-                    }
-                    HStack(alignment: .firstTextBaseline) {
-                        Text(project.apps.prefix(3).map(\.name).joined(separator: ", "))
-                            .lineLimit(1)
-                        Spacer()
-                        if project.agentSeconds > 0 {
-                            Label(formatDuration(project.agentSeconds), systemImage: "sparkles")
-                                .labelStyle(.titleAndIcon)
-                                .monospacedDigit()
-                                .help("Time agents spent working")
-                        }
-                    }
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                }
-                .padding(.vertical, 2)
-                .tag(project.id)
-            }
-        }
-        .overlay {
-            if projects.isEmpty {
-                ContentUnavailableView("No Activity", systemImage: "sun.max",
-                                       description: Text(recorder.paused ? "Recording is paused." : "Time you spend in apps shows up here."))
-            }
-        }
-        .navigationTitle(period?.title ?? "Sundial")
-        .navigationSubtitle(period.flatMap { totals[$0] }.map { $0 > 0 ? formatDuration($0) : "" } ?? "")
-    }
-
-    private func reload() {
-        let now = Date()
-        let month = Period.month.range(now: now)
-        let spans = store.spans(in: month)
-        totals = Dictionary(uniqueKeysWithValues: Period.allCases.map { p in
-            let range = p.range(now: now)
-            return (p, spans.reduce(0) { $0 + $1.seconds(in: range) })
-        })
-        let current = period ?? .today
-        let range = current.range(now: now)
-        projects = summarize(spans, agents: store.agentSpans(in: month), in: range)
-        buckets = timeline(spans, projects: projects, in: range, unit: current.unit)
-        palette = ProjectPalette.colors(for: projects.filter { $0.name != nil && $0.seconds > 0 }.map(\.id))
-        if selection == nil || !projects.contains(where: { $0.id == selection }) {
-            selection = projects.first?.id
-        }
-    }
-}
-
-struct ProjectDetail: View {
-    let project: ProjectSummary
-
-    var body: some View {
-        List {
-            if !project.agents.isEmpty {
-                Section {
-                    ForEach(project.agents) { agent in
-                        ShareRow(share: agent, total: project.agentSeconds) {
-                            Image(systemName: "sparkles").frame(width: 20, height: 20)
-                        }
-                    }
-                } header: {
-                    Text("Agents")
-                } footer: {
-                    Text("From your prompt until the agent stops. Agents running side by side each count in full.")
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            if !project.apps.isEmpty {
-                Section("Apps") {
-                    ForEach(project.apps) { app in
-                        ShareRow(share: app, total: project.seconds) {
-                            Image(nsImage: appIcon(app.bundle)).resizable().frame(width: 20, height: 20)
-                        }
-                    }
-                }
-            }
-            if !project.details.isEmpty {
-                Section(project.name == nil ? "Windows" : "Files, Folders and Pages") {
-                    ForEach(project.details.prefix(50)) { detail in
-                        ShareRow(share: detail, total: project.seconds) {
-                            Image(nsImage: appIcon(detail.bundle)).resizable().frame(width: 16, height: 16)
-                        }
-                        .textSelection(.enabled)
-                    }
-                }
-            }
-        }
-        .navigationTitle(project.name ?? String(localized: "No Project"))
-        .navigationSubtitle(project.seconds > 0 ? formatDuration(project.seconds) : "")
-    }
 }
 
 struct ShareRow<Icon: View>: View {
