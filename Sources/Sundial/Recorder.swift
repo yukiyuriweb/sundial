@@ -142,10 +142,14 @@ final class Recorder: ObservableObject {
 
     // MARK: Projects
 
+    /// Cached by directory, so files in the same folder share one lookup
     private func project(forPath path: String) -> String? {
-        if let cached = projectCache[path] { return cached }
-        let result = gitProject(forPath: path)
-        projectCache[path] = result
+        var isDirectory: ObjCBool = false
+        FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
+        let dir = isDirectory.boolValue ? path : (path as NSString).deletingLastPathComponent
+        if let cached = projectCache[dir] { return cached }
+        let result = gitProject(forPath: dir)
+        projectCache[dir] = result
         return result
     }
 

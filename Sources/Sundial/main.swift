@@ -23,9 +23,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let atLogin = Self.launchedAsLoginItem
         setUpStatusItem()
         recorder.onTick = { [weak self] in
-            // Agent hooks write from other processes, so views reload on every tick rather than only after a sample.
-            self?.store.noteChanges()
-            self?.showToday()
+            guard let self else { return }
+            // Agent hooks write from other processes, so an open window reloads on every tick rather than
+            // only after a sample. A closed window is kept, so it is left alone until it opens again.
+            if window?.isVisible == true { store.noteChanges() }
+            showToday()
         }
         showToday()
         registerAtLoginOnce()
@@ -47,6 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func openWindow(_ sender: Any?) {
         NSApp.setActivationPolicy(.regular)
         if window == nil { window = makeWindow() }
+        store.noteChanges()
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate()
     }

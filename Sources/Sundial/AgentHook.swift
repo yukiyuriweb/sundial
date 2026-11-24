@@ -9,6 +9,8 @@ import SQLite3
 ///
 /// `UserPromptSubmit` starts a turn, `Stop` and `SessionEnd` end it, and any other event (tool use, a model
 /// call) moves the turn's end forward, so a turn cut short without `Stop` ends at its last sign of activity.
+/// Hooks can run side by side (Claude Code runs them asynchronously), so each one reads and writes in a single
+/// write transaction.
 func runAgentHook(tool: String) {
     defer { print("{}") }
     let input = FileHandle.standardInput.readDataToEndOfFile()
@@ -17,6 +19,8 @@ func runAgentHook(tool: String) {
           let event = (json["hook_event_name"] ?? json["hookEventName"]) as? String,
           let db = openDatabase() else { return }
     defer { sqlite3_close(db) }
+    sqlite3_exec(db, "BEGIN IMMEDIATE", nil, nil, nil)
+    defer { sqlite3_exec(db, "COMMIT", nil, nil, nil) }
     let cwd = json["cwd"] as? String
     let now = Date().timeIntervalSince1970
 
@@ -52,8 +56,9 @@ func runAgentHook(tool: String) {
     case "Stop", "SessionEnd":
         if let open { run("UPDATE agent_spans SET end = ?, closed = 1 WHERE id = ?", [now, open.id]) }
     default:
-        // A turn quiet for 15 minutes was left without a Stop; this activity belongs to a new one.
-        if let open, now - open.end < 15 * 60 {
+        // Antigravity CLI has no UserPromptSubmit hook here, so a turn it left without a Stop is closed once it
+        // has been quiet for 15 minutes. Elsewhere the next prompt closes it, and a long tool run stays one turn.
+        if let open, tool != "antigravity" || now - open.end < 15 * 60 {
             run("UPDATE agent_spans SET end = ? WHERE id = ?", [now, open.id])
         } else {
             startTurn()
