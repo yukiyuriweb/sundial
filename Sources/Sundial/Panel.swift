@@ -334,7 +334,8 @@ struct OtherProjectsCard: View {
     }
 }
 
-/// The project's breakdown for the period: agents, apps, and files, folders and pages
+/// The project's breakdown for the period in two columns, agents and apps beside files, folders and pages,
+/// so it fits the panel without scrolling: glass cards scroll poorly.
 struct ProjectCard: View {
     let project: ProjectSummary
     let period: Period
@@ -350,33 +351,39 @@ struct ProjectCard: View {
                 Spacer()
                 Text(period.title).font(.subheadline).foregroundStyle(.secondary)
             }
-            if !project.agents.isEmpty {
-                section("Agents", note: "From your prompt until the agent stops. Agents running side by side each count in full.") {
-                    ForEach(project.agents) { agent in
-                        ShareRow(share: agent, total: project.agentSeconds) {
-                            Image(systemName: "sparkles").frame(width: 18, height: 18)
+            HStack(alignment: .top, spacing: 20) {
+                VStack(alignment: .leading, spacing: 14) {
+                    if !project.agents.isEmpty {
+                        section("Agents", note: "From your prompt until the agent stops. Agents running side by side each count in full.") {
+                            ForEach(project.agents) { agent in
+                                ShareRow(share: agent, total: project.agentSeconds) {
+                                    Image(systemName: "sparkles").frame(width: 18, height: 18)
+                                }
+                            }
+                        }
+                    }
+                    if !project.apps.isEmpty {
+                        section("Apps") {
+                            // Past eight, apps take only moments
+                            ForEach(project.apps.prefix(8)) { app in
+                                ShareRow(share: app, total: project.seconds) {
+                                    Image(nsImage: appIcon(app.bundle)).resizable().frame(width: 18, height: 18)
+                                }
+                            }
                         }
                     }
                 }
-            }
-            if !project.apps.isEmpty {
-                section("Apps") {
-                    ForEach(project.apps) { app in
-                        ShareRow(share: app, total: project.seconds) {
-                            Image(nsImage: appIcon(app.bundle)).resizable().frame(width: 18, height: 18)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                if !project.details.isEmpty {
+                    section(project.name == nil ? "Windows" : "Files, Folders and Pages") {
+                        // The top ten tell where most of the time went; a panel is for a glance
+                        ForEach(project.details.prefix(10)) { detail in
+                            ShareRow(share: detail, total: project.seconds) {
+                                Image(nsImage: appIcon(detail.bundle)).resizable().frame(width: 16, height: 16)
+                            }
                         }
                     }
-                }
-            }
-            if !project.details.isEmpty {
-                section(project.name == nil ? "Windows" : "Files, Folders and Pages") {
-                    // The top ten tell where most of the time went; a panel is for a glance
-                    ForEach(project.details.prefix(10)) { detail in
-                        ShareRow(share: detail, total: project.seconds) {
-                            Image(nsImage: appIcon(detail.bundle)).resizable().frame(width: 16, height: 16)
-                        }
-                        .textSelection(.enabled)
-                    }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 }
             }
         }

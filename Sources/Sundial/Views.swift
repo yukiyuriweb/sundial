@@ -97,11 +97,16 @@ func formatDuration(_ seconds: TimeInterval) -> String {
     return Duration.seconds(seconds).formatted(.units(allowed: [.hours, .minutes], width: .abbreviated))
 }
 
+@MainActor private var appIcons: [String: NSImage] = [:]
+
+/// Looked up once per app, since views ask again on every redraw
+@MainActor
 func appIcon(_ bundle: String) -> NSImage {
-    guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else {
-        return NSImage(systemSymbolName: "app", accessibilityDescription: nil)!
-    }
-    return NSWorkspace.shared.icon(forFile: url.path)
+    if let icon = appIcons[bundle] { return icon }
+    let icon = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle)
+        .map { NSWorkspace.shared.icon(forFile: $0.path) } ?? NSImage(systemSymbolName: "app", accessibilityDescription: nil)!
+    appIcons[bundle] = icon
+    return icon
 }
 
 struct ShareRow<Icon: View>: View {
