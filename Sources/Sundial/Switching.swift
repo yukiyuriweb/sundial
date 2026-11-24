@@ -86,8 +86,8 @@ func usualSwitchesPerHalfHour(_ spans: [Span], days: [Range<Date>]) -> Double? {
     return Double(counts.sorted()[counts.count * 3 / 4])
 }
 
-/// The day's switches per half hour, darker for more, in one hue; half hours above the usual stand out at
-/// full strength. Each has a tooltip with its count.
+/// The day's switches per half hour, darker for more, in neutral ink rather than a hue, so it isn't taken for
+/// a project's color; half hours above the usual stand out at full strength. Each has a tooltip with its count.
 struct SwitchStrip: View {
     let bins: [(start: Date, count: Int)]
     let range: Range<Date>
@@ -101,7 +101,7 @@ struct SwitchStrip: View {
                 let x1 = xPosition(min(bin.start.addingTimeInterval(1800), range.upperBound), in: range, width: geo.size.width)
                 let aboveUsual = usual.map { Double(bin.count) > $0 } ?? false
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.accentColor.opacity(bin.count == 0 ? 0.06 : aboveUsual ? 1 : 0.2 + 0.5 * Double(bin.count) / peak))
+                    .fill(Color.primary.opacity(bin.count == 0 ? 0.05 : aboveUsual ? 0.75 : 0.12 + 0.43 * Double(bin.count) / peak))
                     .frame(width: max(1, x1 - x0 - 1), height: geo.size.height)
                     .position(x: (x0 + x1) / 2, y: geo.size.height / 2)
                     .help(Text("\(bin.start.formatted(date: .omitted, time: .shortened)): ^[\(bin.count) switch](inflect: true)"))
