@@ -4,7 +4,8 @@ A lightweight, native macOS time tracker in the spirit of [WakaTime](https://wak
 
 - Every 5 seconds, records the front app and the file, folder or page it shows, and works out the Git repository it belongs to
 - Stops counting when the screen is locked or asleep, when recording is paused, or after 3 minutes without keyboard or mouse input (10 minutes in apps you mostly read in)
-- The sidebar picks Today, Yesterday, the last 7 days or the last 30 days; the list shows each project's time and apps, and the detail shows the time per app and per file, folder or page
+- The sidebar picks Today, Yesterday, the last 7 days or the last 30 days; a chart shows when you worked, by the hour or by the day and stacked by project, the list shows each project's time and apps, and the detail shows the time per app and per file, folder or page
+- Records how long coding agents work, through their hooks: [Claude Code](https://github.com/anthropics/claude-code), [Codex](https://github.com/openai/codex) and [Antigravity CLI](https://antigravity.google) — kept apart from your own time, since agents run while you do other things
 - Today's total sits next to the menu bar icon; closing the window leaves Sundial recording in the menu bar until Quit
 - Opens at login
 - Written in Swift with SwiftUI only — no Electron, no dependencies
@@ -24,7 +25,32 @@ Sundial needs two kinds of permission, which macOS asks for the first time they 
 - **Accessibility**, to read the document of the focused window. Without it, only app names are recorded.
 - **Automation** for Ghostty and Brave, to read the working directory and the address.
 
-Sundial is signed ad hoc, so macOS treats every new build as a new app: after rebuilding, turn Sundial off and on again in System Settings › Privacy & Security › Accessibility.
+Sundial is signed ad hoc, so macOS treats every new build as a new app, and turning the old entry off and on again doesn't carry the permission over. After rebuilding, remove Sundial from System Settings › Privacy & Security › Accessibility with − (or run `tccutil reset Accessibility local.sundial`), then open Sundial and allow it again.
+
+## Agents
+
+`Sundial agent <tool>` reads a hook's JSON on stdin and records the agent's turn, from your prompt until it stops, under the project of the agent's working directory. It takes about 10 ms and prints `{}`. Point each tool's hooks at the binary inside the app:
+
+| Tool | File | Events |
+|---|---|---|
+| Claude Code | `~/.claude/settings.json` (`hooks`) | `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`, `SessionEnd` |
+| Codex | `~/.codex/hooks.json` | `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop` |
+| Antigravity CLI | `~/.gemini/config/hooks.json` | `PreInvocation`, `PreToolUse`, `PostToolUse`, `Stop` |
+
+For example, in `~/.codex/hooks.json`:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "~/Applications/Sundial.app/Contents/MacOS/Sundial agent codex" }] }],
+    "PreToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "~/Applications/Sundial.app/Contents/MacOS/Sundial agent codex" }] }],
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "~/Applications/Sundial.app/Contents/MacOS/Sundial agent codex" }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "~/Applications/Sundial.app/Contents/MacOS/Sundial agent codex" }] }]
+  }
+}
+```
+
+The tool name (`claude`, `codex`, `antigravity`) is what Sundial shows. A prompt starts a turn and `Stop` ends it; tool use and model calls move its end forward, so a turn cut short without `Stop` ends at its last activity, and `SessionEnd` closes it without moving its end. A tool still running keeps the turn going for up to an hour; otherwise 10 minutes without any event means the agent sat idle, and the next event starts a new turn. Hooks can't tell when you answer a permission prompt, so time spent waiting for you while a tool asks counts as agent time, up to that hour. Antigravity CLI sends no prompt event, so its turns start with any event. Codex runs new hooks only after you trust them in Codex.
 
 Everything is kept in `~/Library/Application Support/Sundial/sundial.sqlite` and never leaves your Mac.
 

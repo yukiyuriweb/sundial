@@ -22,7 +22,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Read before anything else handles an Apple event.
         let atLogin = Self.launchedAsLoginItem
         setUpStatusItem()
-        recorder.onTick = { [weak self] in self?.showToday() }
+        recorder.onTick = { [weak self] in
+            guard let self else { return }
+            // A closed window is kept, so it is left alone until it opens again.
+            if window?.isVisible == true { store.noteChangesIfAny() }
+            showToday()
+        }
         showToday()
         registerAtLoginOnce()
         if !recorder.hasAccessibility { recorder.requestAccessibility() }
@@ -43,6 +48,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func openWindow(_ sender: Any?) {
         NSApp.setActivationPolicy(.regular)
         if window == nil { window = makeWindow() }
+        store.noteChanges()
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate()
     }
@@ -173,6 +179,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         return main
     }
+}
+
+// A hook command: never start the app from here, even when the tool name is missing.
+if CommandLine.arguments.count >= 2, CommandLine.arguments[1] == "agent" {
+    if CommandLine.arguments.count >= 3 {
+        runAgentHook(tool: CommandLine.arguments[2])
+    } else {
+        print("{}")
+    }
+    exit(0)
 }
 
 MainActor.assumeIsolated {

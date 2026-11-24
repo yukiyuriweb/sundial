@@ -81,6 +81,9 @@ final class Recorder: ObservableObject {
     private func activity(of app: NSRunningApplication, bundle: String) -> Activity {
         let name = app.localizedName ?? bundle
         switch bundle {
+        case Bundle.main.bundleIdentifier:
+            // Its own title shows a running total, which would split the record every minute.
+            return Activity(bundle: bundle, app: name, project: nil, detail: nil)
         case BundleID.ghostty:
             let script = """
                 tell application id "\(BundleID.ghostty)"
@@ -139,37 +142,15 @@ final class Recorder: ObservableObject {
 
     // MARK: Projects
 
-    /// The name of the Git repository holding the path, looking no higher than the home folder. A linked
-    /// worktree (such as one an agent made) counts as its main repository.
+    /// Cached by directory, so files in the same folder share one lookup
     private func project(forPath path: String) -> String? {
         var isDirectory: ObjCBool = false
         FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
-        let start = isDirectory.boolValue ? path : (path as NSString).deletingLastPathComponent
-        if let cached = projectCache[start] { return cached }
-        let home = NSHomeDirectory()
-        var dir = start
-        var result: String?
-        while dir.hasPrefix(home + "/") {
-            let git = dir + "/.git"
-            var gitIsDirectory: ObjCBool = false
-            if FileManager.default.fileExists(atPath: git, isDirectory: &gitIsDirectory) {
-                result = gitIsDirectory.boolValue ? nil : mainRepository(ofWorktree: git)
-                result = result ?? (dir as NSString).lastPathComponent
-                break
-            }
-            dir = (dir as NSString).deletingLastPathComponent
-        }
-        projectCache[start] = result
+        let dir = isDirectory.boolValue ? path : (path as NSString).deletingLastPathComponent
+        if let cached = projectCache[dir] { return cached }
+        let result = gitProject(forPath: dir)
+        projectCache[dir] = result
         return result
-    }
-
-    /// A worktree's .git file reads "gitdir: <repo>/.git/worktrees/<name>"
-    private func mainRepository(ofWorktree gitFile: String) -> String? {
-        guard let text = try? String(contentsOfFile: gitFile, encoding: .utf8),
-              let range = text.range(of: "/.git/worktrees/") else { return nil }
-        let line = text[..<range.lowerBound]
-        let repo = line.hasPrefix("gitdir: ") ? line.dropFirst("gitdir: ".count) : line
-        return (String(repo) as NSString).lastPathComponent
     }
 
     private static let githubReserved: Set<String> = [
@@ -188,10 +169,5 @@ final class Recorder: ObservableObject {
     private func pageDetail(_ url: URL) -> String? {
         guard let host = url.host else { return nil }
         return host == "github.com" ? host + url.path : host
-    }
-
-    private func abbreviated(_ path: String) -> String {
-        let home = NSHomeDirectory()
-        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
     }
 }
