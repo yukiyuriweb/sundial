@@ -15,7 +15,6 @@ struct OverviewData {
     struct Trend: Identifiable {
         let id: String
         let name: String
-        let seconds: TimeInterval
         let daily: [Day]
     }
 
@@ -61,7 +60,7 @@ func overview(_ spans: [Span], period: Period, now: Date = Date()) -> OverviewDa
         shares.append(OverviewData.Share(id: "\u{0}none", name: String(localized: "No Project"), seconds: none.seconds, muted: true))
     }
     let trends = named.prefix(6).map { project in
-        OverviewData.Trend(id: project.id, name: project.name!, seconds: project.seconds,
+        OverviewData.Trend(id: project.id, name: project.name!,
                            daily: daily(spans.filter { $0.project?.lowercased() == project.id }))
     }
     let totals = daily(spans)
@@ -153,11 +152,8 @@ struct TrendCell: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(trend.name).font(.callout.weight(.semibold)).lineLimit(1)
-                Spacer()
-                Text(formatDuration(trend.seconds)).font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
-            }
+            // The period's total is in the Projects card already
+            Text(trend.name).font(.callout.weight(.semibold)).lineLimit(1)
             Chart {
                 ForEach(trend.daily) { d in
                     AreaMark(x: .value("Day", d.day, unit: .day), y: .value("Hours", d.seconds / 3600))
