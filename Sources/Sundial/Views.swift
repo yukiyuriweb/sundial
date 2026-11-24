@@ -123,10 +123,18 @@ func appIcon(_ bundle: String) -> NSImage {
     return NSWorkspace.shared.icon(forFile: url.path)
 }
 
+enum SidebarItem: Hashable {
+    case overview
+    case period(Period)
+}
+
 struct ContentView: View {
     @EnvironmentObject private var store: Store
     @EnvironmentObject private var recorder: Recorder
-    @State private var period: Period? = .today
+    @State private var sidebar: SidebarItem? = .overview
+    private var period: Period? {
+        if case .period(let p) = sidebar { p } else { nil }
+    }
     @State private var selection: String?
     @State private var totals: [Period: TimeInterval] = [:]
     @State private var projects: [ProjectSummary] = []
@@ -134,22 +142,35 @@ struct ContentView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(selection: $period) {
-                ForEach(Period.allCases) { p in
-                    Label(p.title, systemImage: p.symbol)
-                        .badge(Text((totals[p] ?? 0) > 0 ? formatDuration(totals[p]!) : ""))
-                        .tag(p)
+            List(selection: $sidebar) {
+                Label("Overview", systemImage: "chart.bar.xaxis")
+                    .tag(SidebarItem.overview)
+                Section("Periods") {
+                    ForEach(Period.allCases) { p in
+                        Label(p.title, systemImage: p.symbol)
+                            .badge(Text((totals[p] ?? 0) > 0 ? formatDuration(totals[p]!) : ""))
+                            .tag(SidebarItem.period(p))
+                    }
                 }
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 220, max: 300)
-        } content: {
-            projectList
-                .navigationSplitViewColumnWidth(min: 260, ideal: 320)
         } detail: {
-            if let project = projects.first(where: { $0.id == selection }) {
-                ProjectDetail(project: project)
+            // The Overview takes the whole width; a period lists its projects beside the one selected.
+            if sidebar == .overview || sidebar == nil {
+                OverviewView()
             } else {
-                ContentUnavailableView("Select a Project", systemImage: "folder")
+                HSplitView {
+                    projectList
+                        .frame(minWidth: 260, idealWidth: 320, maxWidth: 480)
+                    Group {
+                        if let project = projects.first(where: { $0.id == selection }) {
+                            ProjectDetail(project: project)
+                        } else {
+                            ContentUnavailableView("Select a Project", systemImage: "folder")
+                        }
+                    }
+                    .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
+                }
             }
         }
         .toolbar {
@@ -167,7 +188,7 @@ struct ContentView: View {
             .help(recorder.paused ? "Resume Recording" : "Pause Recording")
         }
         .task(id: store.revision) { reload() }
-        .onChange(of: period) { reload() }
+        .onChange(of: sidebar) { reload() }
     }
 
     private var projectList: some View {
