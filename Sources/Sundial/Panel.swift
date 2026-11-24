@@ -3,7 +3,8 @@ import SwiftUI
 
 /// The menu bar panel: the overview for the last 7 or 30 days in glass cards, as in MemoryLens, laid out as a
 /// grid so it fits without scrolling: figures across the top, project shares beside the trends, and the day
-/// timeline across the bottom. Clicking a project switches the panel to its breakdown by agent, app and file.
+/// timeline across the bottom. It is no wider than half a small screen: the panel hangs from the menu bar item
+/// and, where it doesn't fit to the right, grows to the left, and the system doesn't pull it back on screen. Clicking a project switches the panel to its breakdown by agent, app and file.
 struct PanelView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var store: Store
@@ -52,7 +53,7 @@ struct PanelView: View {
             }
         }
         .padding(12)
-        .frame(width: 880)
+        .frame(width: 700)
         .onAppear { model.panelOpen = true }
         .onDisappear { model.panelOpen = false }
         .task(id: store.revision) { reload() }
@@ -76,7 +77,7 @@ struct PanelView: View {
     // MARK: Header
 
     private var headerCard: some View {
-        HStack(alignment: .top, spacing: 16) {
+        HStack(alignment: .top, spacing: 12) {
             if let data {
                 figure("Total", formatDuration(data.total))
                 figure("Today", formatDuration(data.today))
@@ -84,28 +85,16 @@ struct PanelView: View {
                 figure("Most Active Day",
                        data.busiest.map { $0.day.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()) } ?? "–",
                        detail: data.busiest.map { formatDuration($0.seconds) })
-            } else {
-                Spacer()
             }
-            Picker("Period", selection: $periodRaw) {
-                Text("7 Days").tag(Period.week.rawValue)
-                Text("30 Days").tag(Period.month.rawValue)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .fixedSize()
         }
         .card()
     }
 
     private func figure(_ label: LocalizedStringKey, _ value: String, detail: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.subheadline).foregroundStyle(.secondary)
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(value).font(.title3.weight(.semibold)).monospacedDigit()
-                if let detail { Text(detail).font(.subheadline).foregroundStyle(.secondary).monospacedDigit() }
-            }
-            .lineLimit(1)
+            Text(label).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+            Text(value).font(.title3.weight(.semibold)).monospacedDigit().lineLimit(1).minimumScaleFactor(0.8)
+            if let detail { Text(detail).font(.subheadline).foregroundStyle(.secondary).monospacedDigit().lineLimit(1) }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -125,7 +114,7 @@ struct PanelView: View {
                         Text(share.name)
                             .foregroundStyle(share.muted ? .secondary : .primary)
                             .lineLimit(1)
-                            .frame(width: 100, alignment: .trailing)
+                            .frame(width: 80, alignment: .trailing)
                         GeometryReader { geo in
                             UnevenRoundedRectangle(bottomTrailingRadius: 4, topTrailingRadius: 4)
                                 .fill(share.muted ? mutedColor : palette[share.id] ?? mutedColor)
@@ -138,7 +127,7 @@ struct PanelView: View {
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                             .lineLimit(1)
-                            .frame(width: 112, alignment: .trailing)
+                            .frame(width: 104, alignment: .trailing)
                     }
                 }
             }
@@ -154,7 +143,7 @@ struct PanelView: View {
         let peak = data.trends.flatMap(\.daily).map(\.seconds).max() ?? 0
         return VStack(alignment: .leading, spacing: 8) {
             Text("Trends").font(.headline)
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 3), alignment: .leading, spacing: 14) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 14), count: 2), alignment: .leading, spacing: 10) {
                 ForEach(data.trends) { trend in
                     TrendCell(trend: trend, color: palette[trend.id] ?? mutedColor, peakHours: max(peak / 3600, 0.25), period: period)
                 }
@@ -218,6 +207,13 @@ struct PanelView: View {
     /// The rarely used commands sit in one menu
     private var footer: some View {
         HStack {
+            Picker("Period", selection: $periodRaw) {
+                Text("7 Days").tag(Period.week.rawValue)
+                Text("30 Days").tag(Period.month.rawValue)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
             if recorder.paused {
                 Label("Recording Paused", systemImage: "pause.circle").foregroundStyle(.secondary)
             } else if !recorder.hasAccessibility {
