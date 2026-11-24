@@ -108,7 +108,8 @@ func summarize(_ spans: [Span], agents agentSpans: [AgentSpan], in range: Range<
             agentSeconds: agentSpans.reduce(0) { $0 + agentInRange($1) },
             agents: shares(agentSpans, seconds: agentInRange) { ($0.tool, agentName($0.tool), "") })
     }
-    .sorted { ($0.name == nil ? 1 : 0, -$0.seconds, -$0.agentSeconds) < ($1.name == nil ? 1 : 0, -$1.seconds, -$1.agentSeconds) }
+    // Ties go by name, so equal rows don't swap places between reloads
+    .sorted { ($0.name == nil ? 1 : 0, -$0.seconds, -$0.agentSeconds, $0.id) < ($1.name == nil ? 1 : 0, -$1.seconds, -$1.agentSeconds, $1.id) }
 }
 
 func formatDuration(_ seconds: TimeInterval) -> String {
@@ -139,6 +140,7 @@ struct ContentView: View {
     @State private var totals: [Period: TimeInterval] = [:]
     @State private var projects: [ProjectSummary] = []
     @State private var buckets: [Bucket] = []
+    @State private var palette: [String: Color] = [:]
 
     var body: some View {
         NavigationSplitView {
@@ -197,7 +199,10 @@ struct ContentView: View {
                 let drawn = Set(buckets.map(\.project))
                 let all = timelineSeries(projects)
                 let series = all.filter(drawn.contains)
-                TimelineChart(buckets: buckets, series: series, colors: series.map { timelineColor($0, in: all) },
+                let colors = series.map { name in
+                    projects.first { $0.name == name }.flatMap { palette[$0.id] } ?? mutedColor
+                }
+                TimelineChart(buckets: buckets, series: series, colors: colors,
                               domain: period.chartDomain(), unit: period.unit)
                     .frame(height: 150)
                     .padding(.vertical, 6)
@@ -258,6 +263,7 @@ struct ContentView: View {
         let range = current.range(now: now)
         projects = summarize(spans, agents: store.agentSpans(in: month), in: range)
         buckets = timeline(spans, projects: projects, in: range, unit: current.unit)
+        palette = ProjectPalette.colors(for: projects.filter { $0.name != nil && $0.seconds > 0 }.map(\.id))
         if selection == nil || !projects.contains(where: { $0.id == selection }) {
             selection = projects.first?.id
         }

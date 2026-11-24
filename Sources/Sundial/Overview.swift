@@ -111,6 +111,7 @@ struct OverviewView: View {
     @State private var day = Calendar.current.startOfDay(for: Date())
     @State private var data: OverviewData?
     @State private var rows: [DayRow] = []
+    @State private var palette: [String: Color] = [:]
 
     private var period: Period { Period(rawValue: periodRaw) ?? .week }
     private var dayRange: Range<Date> { day..<Calendar.current.date(byAdding: .day, value: 1, to: day)! }
@@ -149,6 +150,10 @@ struct OverviewView: View {
         let now = Date()
         data = overview(store.spans(in: period.range(now: now)), period: period, now: now)
         rows = dayRows(store.spans(in: dayRange), day: dayRange)
+        // The period's projects first, by time, then any only the shown day has
+        let keys = (data?.shares.filter { !$0.muted }.map(\.id) ?? []) + rows.filter { !$0.muted }.map(\.id)
+        var seen = Set<String>()
+        palette = ProjectPalette.colors(for: keys.filter { seen.insert($0).inserted })
     }
 
     // MARK: Figures
@@ -189,7 +194,7 @@ struct OverviewView: View {
                         .gridColumnAlignment(.trailing)
                     GeometryReader { geo in
                         UnevenRoundedRectangle(bottomTrailingRadius: 4, topTrailingRadius: 4)
-                            .fill(share.muted ? Color.gray.opacity(0.5) : Color.accentColor)
+                            .fill(share.muted ? mutedColor : palette[share.id] ?? mutedColor)
                             .frame(width: max(2, geo.size.width * share.seconds / longest))
                     }
                     .frame(height: 14)
@@ -212,7 +217,7 @@ struct OverviewView: View {
         let peak = data.trends.flatMap(\.daily).map(\.seconds).max() ?? 0
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 16)], alignment: .leading, spacing: 16) {
             ForEach(data.trends) { trend in
-                TrendCell(trend: trend, peakHours: max(peak / 3600, 0.25), period: period)
+                TrendCell(trend: trend, color: palette[trend.id] ?? mutedColor, peakHours: max(peak / 3600, 0.25), period: period)
             }
         }
         .padding(.vertical, 4)
@@ -255,7 +260,7 @@ struct OverviewView: View {
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                             .gridColumnAlignment(.trailing)
-                        DayStrip(blocks: row.blocks, day: dayRange, color: row.muted ? Color.gray.opacity(0.5) : Color.accentColor)
+                        DayStrip(blocks: row.blocks, day: dayRange, color: row.muted ? mutedColor : palette[row.id] ?? mutedColor)
                             .frame(height: 16)
                     }
                 }
@@ -312,6 +317,7 @@ struct HourAxis: View {
 
 struct TrendCell: View {
     let trend: OverviewData.Trend
+    let color: Color
     let peakHours: Double
     let period: Period
     @State private var selected: Date?
@@ -326,9 +332,9 @@ struct TrendCell: View {
             Chart {
                 ForEach(trend.daily) { d in
                     AreaMark(x: .value("Day", d.day, unit: .day), y: .value("Hours", d.seconds / 3600))
-                        .foregroundStyle(Color.accentColor.opacity(0.15))
+                        .foregroundStyle(color.opacity(0.15))
                     LineMark(x: .value("Day", d.day, unit: .day), y: .value("Hours", d.seconds / 3600))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(color)
                         .lineStyle(StrokeStyle(lineWidth: 2))
                 }
                 if let selected, let d = trend.daily.first(where: { Calendar.current.isDate($0.day, inSameDayAs: selected) }) {
@@ -349,12 +355,16 @@ struct TrendCell: View {
                 }
             }
             .chartYAxis {
-                AxisMarks(values: .automatic(desiredCount: 2)) {
+                AxisMarks(values: .automatic(desiredCount: 2)) { value in
                     AxisGridLine()
-                    AxisValueLabel()
+                    AxisValueLabel {
+                        if let hours = value.as(Double.self) {
+                            Text(hours == 0 ? "0" : Duration.seconds(hours * 3600)
+                                .formatted(.units(allowed: [.hours, .minutes], width: .narrow)))
+                        }
+                    }
                 }
             }
-            .chartYAxisLabel("hr")
             .chartXSelection(value: $selected)
             .frame(height: 90)
         }

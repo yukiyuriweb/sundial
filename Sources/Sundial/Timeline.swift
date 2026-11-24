@@ -9,20 +9,10 @@ struct Bucket: Identifiable {
     let minutes: Double
 }
 
-/// The projects the timeline names, in order of your time on them. Colors follow this order, so two projects
-/// swap colors when they swap places.
+/// The projects the timeline names, in order of your time on them; each keeps its own color (see ProjectPalette)
 func timelineSeries(_ projects: [ProjectSummary]) -> [String] {
     projects.filter { $0.name != nil && $0.seconds > 0 }.prefix(5).compactMap(\.name)
         + [String(localized: "Other Projects"), String(localized: "No Project")]
-}
-
-/// A series' color comes from its place among all series, not just the drawn ones, so leaving out
-/// "Other Projects" on a quieter day doesn't shift "No Project" to another color.
-func timelineColor(_ name: String, in series: [String]) -> Color {
-    let palette: [Color] = [.blue, .green, .orange, .purple, .pink]
-    if name == String(localized: "No Project") { return .gray.opacity(0.45) }
-    if name == String(localized: "Other Projects") { return .gray }
-    return palette[min(series.firstIndex(of: name) ?? 0, palette.count - 1)]
 }
 
 /// Your own time per hour or per day, stacked by project. The projects after the first five share one color.
