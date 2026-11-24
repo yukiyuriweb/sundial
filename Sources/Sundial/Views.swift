@@ -23,6 +23,15 @@ enum Period: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Hours for a single day, days for longer periods
+    var unit: Calendar.Component { self == .today || self == .yesterday ? .hour : .day }
+
+    /// What the timeline shows: all of today rather than today until now
+    func chartDomain(now: Date = Date()) -> Range<Date> {
+        let r = range(now: now)
+        return r.lowerBound..<Calendar.current.startOfDay(for: Calendar.current.date(byAdding: .day, value: 1, to: r.upperBound.addingTimeInterval(-1))!)
+    }
+
     func range(now: Date = Date()) -> Range<Date> {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
@@ -43,40 +52,63 @@ struct Share: Identifiable {
     let seconds: TimeInterval
 }
 
-/// Time on one project, or on everything outside a project when `name` is nil
+/// Time on one project, or on everything outside a project when `name` is nil. `seconds` is your own time in
+/// apps; agents' time is kept apart, since agents run while you do other things and alongside each other.
 struct ProjectSummary: Identifiable {
     let id: String
     let name: String?
     let seconds: TimeInterval
     let apps: [Share]
     let details: [Share]
+    let agentSeconds: TimeInterval
+    let agents: [Share]
+}
+
+func agentName(_ tool: String) -> String {
+    switch tool {
+    case "claude": "Claude Code"
+    case "codex": "Codex"
+    case "antigravity": "Antigravity CLI"
+    default: tool
+    }
 }
 
 /// Projects are matched without regard to case, so the GitHub repository "rejoin" joins the local folder "Rejoin"
-func summarize(_ spans: [Span], in range: Range<Date>) -> [ProjectSummary] {
+func summarize(_ spans: [Span], agents agentSpans: [AgentSpan], in range: Range<Date>) -> [ProjectSummary] {
     var groups: [String: [Span]] = [:]
     for span in spans where span.seconds(in: range) > 0 {
         groups[span.project?.lowercased() ?? "", default: []].append(span)
     }
-    func shares(_ spans: [Span], key: (Span) -> (id: String, name: String)?) -> [Share] {
-        var seconds: [String: (name: String, bundle: String, seconds: TimeInterval)] = [:]
-        for span in spans {
-            guard let k = key(span) else { continue }
-            seconds[k.id, default: (k.name, span.bundle, 0)].seconds += span.seconds(in: range)
+    var agentGroups: [String: [AgentSpan]] = [:]
+    for span in agentSpans where span.seconds(in: range) > 0 {
+        agentGroups[span.project?.lowercased() ?? "", default: []].append(span)
+    }
+    func shares<T>(_ items: [T], seconds: (T) -> TimeInterval, key: (T) -> (id: String, name: String, bundle: String)?) -> [Share] {
+        var totals: [String: (name: String, bundle: String, seconds: TimeInterval)] = [:]
+        for item in items {
+            guard let k = key(item) else { continue }
+            totals[k.id, default: (k.name, k.bundle, 0)].seconds += seconds(item)
         }
-        return seconds.map { Share(id: $0.key, name: $0.value.name, bundle: $0.value.bundle, seconds: $0.value.seconds) }
+        return totals.map { Share(id: $0.key, name: $0.value.name, bundle: $0.value.bundle, seconds: $0.value.seconds) }
             .sorted { $0.seconds > $1.seconds }
     }
-    return groups.map { key, spans in
+    let inRange = { (span: Span) in span.seconds(in: range) }
+    let agentInRange = { (span: AgentSpan) in span.seconds(in: range) }
+    return Set(groups.keys).union(agentGroups.keys).map { key in
+        let spans = groups[key] ?? []
+        let agentSpans = agentGroups[key] ?? []
         // The spelling that got the most time names the project
-        let name = shares(spans) { $0.project.map { ($0, $0) } }.first?.name
+        let name = shares(spans, seconds: inRange) { $0.project.map { ($0, $0, "") } }.first?.name
+            ?? agentSpans.first?.project
         return ProjectSummary(
             id: key, name: key.isEmpty ? nil : name,
-            seconds: spans.reduce(0) { $0 + $1.seconds(in: range) },
-            apps: shares(spans) { ($0.bundle, $0.app) },
-            details: shares(spans) { span in span.detail.map { (span.bundle + "\n" + $0, $0) } })
+            seconds: spans.reduce(0) { $0 + inRange($1) },
+            apps: shares(spans, seconds: inRange) { ($0.bundle, $0.app, $0.bundle) },
+            details: shares(spans, seconds: inRange) { span in span.detail.map { (span.bundle + "\n" + $0, $0, span.bundle) } },
+            agentSeconds: agentSpans.reduce(0) { $0 + agentInRange($1) },
+            agents: shares(agentSpans, seconds: agentInRange) { ($0.tool, agentName($0.tool), "") })
     }
-    .sorted { ($0.name == nil ? 1 : 0, -$0.seconds) < ($1.name == nil ? 1 : 0, -$1.seconds) }
+    .sorted { ($0.name == nil ? 1 : 0, -$0.seconds, -$0.agentSeconds) < ($1.name == nil ? 1 : 0, -$1.seconds, -$1.agentSeconds) }
 }
 
 func formatDuration(_ seconds: TimeInterval) -> String {
@@ -98,13 +130,14 @@ struct ContentView: View {
     @State private var selection: String?
     @State private var totals: [Period: TimeInterval] = [:]
     @State private var projects: [ProjectSummary] = []
+    @State private var buckets: [Bucket] = []
 
     var body: some View {
         NavigationSplitView {
             List(selection: $period) {
                 ForEach(Period.allCases) { p in
                     Label(p.title, systemImage: p.symbol)
-                        .badge(Text(totals[p].map(formatDuration) ?? ""))
+                        .badge(Text((totals[p] ?? 0) > 0 ? formatDuration(totals[p]!) : ""))
                         .tag(p)
                 }
             }
@@ -139,6 +172,12 @@ struct ContentView: View {
 
     private var projectList: some View {
         List(selection: $selection) {
+            if !projects.isEmpty, let period {
+                TimelineChart(buckets: buckets, domain: period.chartDomain(), unit: period.unit)
+                    .frame(height: 150)
+                    .padding(.vertical, 6)
+                    .selectionDisabled()
+            }
             ForEach(projects) { project in
                 VStack(alignment: .leading, spacing: 2) {
                     HStack(alignment: .firstTextBaseline) {
@@ -151,10 +190,19 @@ struct ContentView: View {
                             .foregroundStyle(.secondary)
                             .monospacedDigit()
                     }
-                    Text(project.apps.prefix(3).map(\.name).joined(separator: ", "))
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    HStack(alignment: .firstTextBaseline) {
+                        Text(project.apps.prefix(3).map(\.name).joined(separator: ", "))
+                            .lineLimit(1)
+                        Spacer()
+                        if project.agentSeconds > 0 {
+                            Label(formatDuration(project.agentSeconds), systemImage: "sparkles")
+                                .labelStyle(.titleAndIcon)
+                                .monospacedDigit()
+                                .help("Time agents spent working")
+                        }
+                    }
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 2)
                 .tag(project.id)
@@ -178,7 +226,10 @@ struct ContentView: View {
             let range = p.range(now: now)
             return (p, spans.reduce(0) { $0 + $1.seconds(in: range) })
         })
-        projects = summarize(spans, in: (period ?? .today).range(now: now))
+        let current = period ?? .today
+        let range = current.range(now: now)
+        projects = summarize(spans, agents: store.agentSpans(in: month), in: range)
+        buckets = timeline(spans, projects: projects, in: range, unit: current.unit)
         if selection == nil || !projects.contains(where: { $0.id == selection }) {
             selection = projects.first?.id
         }
@@ -190,10 +241,25 @@ struct ProjectDetail: View {
 
     var body: some View {
         List {
-            Section("Apps") {
-                ForEach(project.apps) { app in
-                    ShareRow(share: app, total: project.seconds) {
-                        Image(nsImage: appIcon(app.bundle)).resizable().frame(width: 20, height: 20)
+            if !project.agents.isEmpty {
+                Section {
+                    ForEach(project.agents) { agent in
+                        ShareRow(share: agent, total: project.agentSeconds) {
+                            Image(systemName: "sparkles").frame(width: 20, height: 20)
+                        }
+                    }
+                } header: {
+                    Text("Agents")
+                } footer: {
+                    Text("From your prompt until the agent stops. Agents running side by side each count in full.")
+                }
+            }
+            if !project.apps.isEmpty {
+                Section("Apps") {
+                    ForEach(project.apps) { app in
+                        ShareRow(share: app, total: project.seconds) {
+                            Image(nsImage: appIcon(app.bundle)).resizable().frame(width: 20, height: 20)
+                        }
                     }
                 }
             }

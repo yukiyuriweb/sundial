@@ -4,7 +4,8 @@ A lightweight, native macOS time tracker in the spirit of [WakaTime](https://wak
 
 - Every 5 seconds, records the front app and the file, folder or page it shows, and works out the Git repository it belongs to
 - Stops counting when the screen is locked or asleep, when recording is paused, or after 3 minutes without keyboard or mouse input (10 minutes in apps you mostly read in)
-- The sidebar picks Today, Yesterday, the last 7 days or the last 30 days; the list shows each project's time and apps, and the detail shows the time per app and per file, folder or page
+- The sidebar picks Today, Yesterday, the last 7 days or the last 30 days; a chart shows when you worked, by the hour or by the day and stacked by project, the list shows each project's time and apps, and the detail shows the time per app and per file, folder or page
+- Records how long coding agents work, through their hooks: [Claude Code](https://github.com/anthropics/claude-code), [Codex](https://github.com/openai/codex) and [Antigravity CLI](https://antigravity.google) — kept apart from your own time, since agents run while you do other things
 - Today's total sits next to the menu bar icon; closing the window leaves Sundial recording in the menu bar until Quit
 - Opens at login
 - Written in Swift with SwiftUI only — no Electron, no dependencies
@@ -25,6 +26,30 @@ Sundial needs two kinds of permission, which macOS asks for the first time they 
 - **Automation** for Ghostty and Brave, to read the working directory and the address.
 
 Sundial is signed ad hoc, so macOS treats every new build as a new app: after rebuilding, turn Sundial off and on again in System Settings › Privacy & Security › Accessibility.
+
+## Agents
+
+`Sundial agent <tool>` reads a hook's JSON on stdin and records the agent's turn, from your prompt until it stops, under the project of the agent's working directory. It takes about 10 ms and prints `{}`. Point each tool's hooks at the binary inside the app:
+
+| Tool | File | Events |
+|---|---|---|
+| Claude Code | `~/.claude/settings.json` (`hooks`) | `UserPromptSubmit`, `PostToolUse`, `Stop`, `SessionEnd` |
+| Codex | `~/.codex/hooks.json` | `UserPromptSubmit`, `PostToolUse`, `Stop` |
+| Antigravity CLI | `~/.gemini/config/hooks.json` | `PreInvocation`, `PostToolUse`, `Stop` |
+
+For example, in `~/.codex/hooks.json`:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "~/Applications/Sundial.app/Contents/MacOS/Sundial agent codex" }] }],
+    "PostToolUse": [{ "matcher": "", "hooks": [{ "type": "command", "command": "~/Applications/Sundial.app/Contents/MacOS/Sundial agent codex" }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "~/Applications/Sundial.app/Contents/MacOS/Sundial agent codex" }] }]
+  }
+}
+```
+
+The tool name (`claude`, `codex`, `antigravity`) is what Sundial shows. Tool use and model calls move a turn's end forward, so a turn cut short without `Stop` ends at its last activity. Codex runs new hooks only after you trust them in Codex.
 
 Everything is kept in `~/Library/Application Support/Sundial/sundial.sqlite` and never leaves your Mac.
 

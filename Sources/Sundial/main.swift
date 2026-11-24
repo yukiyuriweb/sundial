@@ -22,7 +22,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Read before anything else handles an Apple event.
         let atLogin = Self.launchedAsLoginItem
         setUpStatusItem()
-        recorder.onTick = { [weak self] in self?.showToday() }
+        recorder.onTick = { [weak self] in
+            // Agent hooks write from other processes, so views reload on every tick rather than only after a sample.
+            self?.store.noteChanges()
+            self?.showToday()
+        }
         showToday()
         registerAtLoginOnce()
         if !recorder.hasAccessibility { recorder.requestAccessibility() }
@@ -173,6 +177,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         return main
     }
+}
+
+if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "agent" {
+    runAgentHook(tool: CommandLine.arguments[2])
+    exit(0)
 }
 
 MainActor.assumeIsolated {

@@ -40,3 +40,13 @@
 "Window" = "ウインドウ";
 "Minimize" = "しまう";
 "Zoom" = "拡大／縮小";
+
+/* Agents */
+"Agents" = "エージェント";
+"Time agents spent working" = "エージェントが作業していた時間";
+"From your prompt until the agent stops. Agents running side by side each count in full." = "指示を出してからエージェントが止まるまでの時間です。同時に動いたエージェントは、それぞれの時間をすべて数えます。";
+
+/* Timeline */
+"Other Projects" = "その他のプロジェクト";
+"min" = "分";
+"hr" = "時間";
