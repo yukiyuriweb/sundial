@@ -24,9 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         setUpStatusItem()
         recorder.onTick = { [weak self] in
             guard let self else { return }
-            // Agent hooks write from other processes, so an open window reloads on every tick rather than
-            // only after a sample. A closed window is kept, so it is left alone until it opens again.
-            if window?.isVisible == true { store.noteChanges() }
+            // A closed window is kept, so it is left alone until it opens again.
+            if window?.isVisible == true { store.noteChangesIfAny() }
             showToday()
         }
         showToday()
@@ -182,8 +181,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 }
 
-if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "agent" {
-    runAgentHook(tool: CommandLine.arguments[2])
+// A hook command: never start the app from here, even when the tool name is missing.
+if CommandLine.arguments.count >= 2, CommandLine.arguments[1] == "agent" {
+    if CommandLine.arguments.count >= 3 {
+        runAgentHook(tool: CommandLine.arguments[2])
+    } else {
+        print("{}")
+    }
     exit(0)
 }
 

@@ -9,7 +9,8 @@ struct Bucket: Identifiable {
     let minutes: Double
 }
 
-/// The projects the timeline names, in the order their colors are given, so colors stay put between reloads
+/// The projects the timeline names, in order of your time on them. Colors follow this order, so two projects
+/// swap colors when they swap places.
 func timelineSeries(_ projects: [ProjectSummary]) -> [String] {
     projects.filter { $0.name != nil && $0.seconds > 0 }.prefix(5).compactMap(\.name)
         + [String(localized: "Other Projects"), String(localized: "No Project")]

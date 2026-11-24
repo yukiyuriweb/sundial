@@ -50,7 +50,7 @@ For example, in `~/.codex/hooks.json`:
 }
 ```
 
-The tool name (`claude`, `codex`, `antigravity`) is what Sundial shows. A prompt starts a turn and `Stop` ends it; tool use and model calls move its end forward, so a turn cut short without `Stop` ends at its last activity, and `SessionEnd` closes it without moving its end. A tool still running keeps the turn going however long it takes; otherwise 10 minutes without any event means the agent sat idle, and the next event starts a new turn. Antigravity CLI sends no prompt event, so its turns start with any event. Codex runs new hooks only after you trust them in Codex.
+The tool name (`claude`, `codex`, `antigravity`) is what Sundial shows. A prompt starts a turn and `Stop` ends it; tool use and model calls move its end forward, so a turn cut short without `Stop` ends at its last activity, and `SessionEnd` closes it without moving its end. A tool still running keeps the turn going for up to an hour; otherwise 10 minutes without any event means the agent sat idle, and the next event starts a new turn. Hooks can't tell when you answer a permission prompt, so time spent waiting for you while a tool asks counts as agent time, up to that hour. Antigravity CLI sends no prompt event, so its turns start with any event. Codex runs new hooks only after you trust them in Codex.
 
 Everything is kept in `~/Library/Application Support/Sundial/sundial.sqlite` and never leaves your Mac.
 

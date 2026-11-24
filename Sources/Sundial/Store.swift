@@ -97,11 +97,13 @@ func bind(_ stmt: OpaquePointer?, _ values: [Any?]) {
 /// activity extend one row rather than adding a row each.
 @MainActor
 final class Store: ObservableObject {
-    /// Bumped by `noteChanges()` (every tick while the window is open, and when it opens) so views reload;
-    /// agent hooks write from other processes, so a write here alone isn't the only change to show
+    /// Bumped by `noteChanges()` so views reload: when the window opens, and on ticks while it is open after a
+    /// sample here or a write from an agent hook in another process
     @Published private(set) var revision = 0
     private var db: OpaquePointer?
     private var last: (id: Int64, activity: Activity, end: TimeInterval)?
+    private var unshown = true
+    private var dataVersion: Int64 = -1
 
     init() {
         db = openDatabase()
@@ -119,9 +121,28 @@ final class Store: ObservableObject {
                 [t - interval, t, activity.bundle, activity.app, activity.project, activity.detail])
             last = (sqlite3_last_insert_rowid(db), activity, t)
         }
+        unshown = true
     }
 
-    func noteChanges() { revision += 1 }
+    func noteChanges() {
+        unshown = false
+        revision += 1
+    }
+
+    /// Reloads views only when something was written since they last loaded: a sample here, or a commit by
+    /// another process, which SQLite's data_version shows
+    func noteChangesIfAny() {
+        var stmt: OpaquePointer?
+        var version = dataVersion
+        if sqlite3_prepare_v2(db, "PRAGMA data_version", -1, &stmt, nil) == SQLITE_OK, sqlite3_step(stmt) == SQLITE_ROW {
+            version = sqlite3_column_int64(stmt, 0)
+        }
+        sqlite3_finalize(stmt)
+        if unshown || version != dataVersion {
+            dataVersion = version
+            noteChanges()
+        }
+    }
 
     /// Spans that overlap the range
     func spans(in range: Range<Date>) -> [Span] {
