@@ -1,12 +1,13 @@
 # Sundial
 
-A lightweight, native macOS time tracker in the spirit of [WakaTime](https://wakatime.com), with no editor plugins and nothing sent anywhere. It sits in the menu bar, notes every few seconds which app is in front and what it shows, and adds the time up by project.
+A lightweight, native macOS time tracker in the spirit of [WakaTime](https://wakatime.com), with no editor plugins and nothing sent anywhere. It lives in the menu bar, notes every few seconds which app is in front and what it shows, and adds the time up by project. Clicking its menu bar item, which shows today's total, opens a panel with the overview.
 
 - Every 5 seconds, records the front app and the file, folder or page it shows, and works out the Git repository it belongs to
 - Stops counting when the screen is locked or asleep, when recording is paused, or after 3 minutes without keyboard or mouse input (10 minutes in apps you mostly read in)
-- The sidebar picks Today, Yesterday, the last 7 days or the last 30 days; a chart shows when you worked, by the hour or by the day and stacked by project, the list shows each project's time and apps, and the detail shows the time per app and per file, folder or page
+- The panel shows, for the last 7 or 30 days, your total, today's time, the daily average and the most active day; each project's time as ranked bars with its share; each project's day-by-day trend as small charts on one scale; and a day's timeline, one row per project from an hour before your first work to an hour after your last, a day at a time. Each project keeps its color across periods and launches, from the eight-color palette of Claude Code's dataviz skill; with more than eight on screen, those with the least time are drawn in gray
+- Click a project for its time per agent, per app and per file, folder or page; "Other Projects" lists the rest, including projects only agents worked on
 - Records how long coding agents work, through their hooks: [Claude Code](https://github.com/anthropics/claude-code), [Codex](https://github.com/openai/codex) and [Antigravity CLI](https://antigravity.google) — kept apart from your own time, since agents run while you do other things
-- Today's total sits next to the menu bar icon; closing the window leaves Sundial recording in the menu bar until Quit
+- The ⋯ menu at the bottom of the panel pauses recording, turns Open at Login on or off, and quits. If the menu bar item can't be seen (no room beside the notch, or turned off in System Settings › Menu Bar), opening Sundial again from the Finder offers to quit
 - Opens at login
 - Written in Swift with SwiftUI only — no Electron, no dependencies
 
@@ -16,7 +17,9 @@ A lightweight, native macOS time tracker in the spirit of [WakaTime](https://wak
 |---|---|---|
 | [Ghostty](https://ghostty.org) | AppleScript | Working directory of the focused terminal |
 | Brave | AppleScript | Address of the active tab; on github.com, the repository counts as the project |
-| Any other app | Accessibility API | Document (file) and title of the focused window |
+| Any other app | Accessibility API | Document (file) of the focused window |
+
+Time outside a project is kept by app only: the pages and windows open there aren't stored.
 
 The project is the Git repository holding the file or directory, found by looking for `.git` up to the home folder. A linked worktree counts as its main repository, and project names are matched without regard to case, so the GitHub repository `rejoin` joins the local folder `Rejoin`.
 

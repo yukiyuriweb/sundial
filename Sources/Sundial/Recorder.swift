@@ -73,7 +73,11 @@ final class Recorder: ObservableObject {
         let anyInput = CGEventType(rawValue: ~0)!
         let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput)
         guard idle < (Self.readingApps.contains(bundle) ? Self.readingIdleLimit : Self.idleLimit) else { return }
-        store.record(activity(of: app, bundle: bundle), at: Date(), interval: Self.interval)
+        // Outside a project only the app is kept: which pages or windows were open there is of no use here,
+        // and is better not stored.
+        let seen = activity(of: app, bundle: bundle)
+        store.record(seen.project == nil ? Activity(bundle: bundle, app: seen.app, project: nil, detail: nil) : seen,
+                     at: Date(), interval: Self.interval)
     }
 
     // MARK: What the front app shows
@@ -82,7 +86,8 @@ final class Recorder: ObservableObject {
         let name = app.localizedName ?? bundle
         switch bundle {
         case Bundle.main.bundleIdentifier:
-            // Its own title shows a running total, which would split the record every minute.
+            // Sundial itself, with its panel open: an Accessibility query to its own process would be answered
+            // on the main thread it blocks, holding the panel for up to the timeout.
             return Activity(bundle: bundle, app: name, project: nil, detail: nil)
         case BundleID.ghostty:
             let script = """
@@ -109,11 +114,10 @@ final class Recorder: ObservableObject {
         default:
             break
         }
-        let window = focusedWindow(of: app.processIdentifier)
-        if let document = window.document, let url = URL(string: document), url.isFileURL {
+        if let document = focusedDocument(of: app.processIdentifier), let url = URL(string: document), url.isFileURL {
             return Activity(bundle: bundle, app: name, project: project(forPath: url.path), detail: abbreviated(url.path))
         }
-        return Activity(bundle: bundle, app: name, project: nil, detail: window.title.flatMap { $0.isEmpty ? nil : $0 })
+        return Activity(bundle: bundle, app: name, project: nil, detail: nil)
     }
 
     private func runScript(_ source: String) -> String? {
@@ -123,21 +127,17 @@ final class Recorder: ObservableObject {
         return script?.executeAndReturnError(&error).stringValue
     }
 
-    /// The document (a file URL) and title of the app's focused window, through the Accessibility API
-    private func focusedWindow(of pid: pid_t) -> (document: String?, title: String?) {
-        guard hasAccessibility else { return (nil, nil) }
+    /// The document (a file URL) of the app's focused window, through the Accessibility API
+    private func focusedDocument(of pid: pid_t) -> String? {
+        guard hasAccessibility else { return nil }
         let app = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(app, 1)
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXFocusedWindowAttribute as CFString, &value) == .success,
-              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return (nil, nil) }
-        let window = value as! AXUIElement
-        func string(_ attribute: String) -> String? {
-            var v: CFTypeRef?
-            AXUIElementCopyAttributeValue(window, attribute as CFString, &v)
-            return v as? String
-        }
-        return (string(kAXDocumentAttribute), string(kAXTitleAttribute))
+              let value, CFGetTypeID(value) == AXUIElementGetTypeID() else { return nil }
+        var document: CFTypeRef?
+        AXUIElementCopyAttributeValue(value as! AXUIElement, kAXDocumentAttribute as CFString, &document)
+        return document as? String
     }
 
     // MARK: Projects
@@ -165,9 +165,9 @@ final class Recorder: ObservableObject {
         return parts[1]
     }
 
-    /// The path for GitHub pages, so pull requests and files stay apart; only the host for other sites
+    /// The page's host and path, so pull requests and files stay apart (only GitHub pages, which belong to a
+    /// project, are kept)
     private func pageDetail(_ url: URL) -> String? {
-        guard let host = url.host else { return nil }
-        return host == "github.com" ? host + url.path : host
+        url.host.map { $0 + url.path }
     }
 }

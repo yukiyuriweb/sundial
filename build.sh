@@ -36,6 +36,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleVersion</key><string>1</string>
     <key>LSMinimumSystemVersion</key><string>26.0</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>LSUIElement</key><true/>
     <key>NSAppleEventsUsageDescription</key><string>Sundial reads the working directory of the front Ghostty terminal and the address of the front Brave tab to tell which project you are working on.</string>
 </dict>
 </plist>

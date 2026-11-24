@@ -11,7 +11,6 @@
 "Recording is paused." = "記録を一時停止しています。";
 "Select a Project" = "プロジェクトを選択";
 "Apps" = "アプリ";
-"Windows" = "ウインドウ";
 "Files, Folders and Pages" = "ファイル・フォルダ・ページ";
 "Under 1 min" = "1 分未満";
 
@@ -53,3 +52,34 @@
 "Time" = "時刻";
 "Time Spent" = "作業時間";
 "Project" = "プロジェクト";
+
+/* Overview */
+"Overview" = "概要";
+"Periods" = "期間";
+"Period" = "期間";
+"Total" = "合計";
+"Daily Average" = "1 日の平均";
+"Most Active Day" = "最も作業した日";
+"Projects" = "プロジェクト";
+"Trends" = "推移";
+"Previous Day" = "前の日";
+"Next Day" = "次の日";
+"No activity on this day." = "この日の記録はありません。";
+"Day" = "日";
+"Hours" = "時間";
+"Start" = "開始";
+"End" = "終了";
+
+/* Panel */
+"7 Days" = "7 日間";
+"30 Days" = "30 日間";
+"Recording Paused" = "記録を一時停止中";
+"Accessibility access needed" = "アクセシビリティへのアクセスが必要です";
+"More" = "その他";
+"Back" = "戻る";
+"^[%lld project](inflect: true)" = "%lld 件のプロジェクト";
+
+/* Reopen */
+"Sundial is running in the menu bar" = "Sundial はメニューバーで動いています";
+"Click its icon and today's total in the menu bar to see the overview. If you can't see it, the menu bar may have no room for it, or it may be turned off in System Settings › Menu Bar." = "メニューバーのアイコンと今日の合計をクリックすると、概要が開きます。見当たらない場合は、メニューバーに表示する場所がないか、システム設定の「メニューバー」で表示が切られている可能性があります。";
+"OK" = "OK";
